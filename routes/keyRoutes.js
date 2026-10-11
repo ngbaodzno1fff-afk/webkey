@@ -1,6 +1,6 @@
 const express = require("express");
 const crypto = require("crypto");
-const { readDb, writeDb } = require("../db/database");
+const { loadState, saveState } = require("../db/database");
 const { verifyToken } = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -34,7 +34,7 @@ function formatVNDateTime(isoStr) {
   return `${day}-${month}-${year} ${hours12}:${mins}:${secs} ${period}`;
 }
 
-function syncExpiredKeys(state) {
+async function syncExpiredKeys(state) {
   const nowMs = Date.now();
   let changed = false;
   for (const k of state.license_keys) {
@@ -45,7 +45,7 @@ function syncExpiredKeys(state) {
       }
     }
   }
-  if (changed) writeDb(state);
+  if (changed) await saveState(state);
 }
 
 function generateRandomKeyCode(rawPrefix) {
@@ -69,112 +69,127 @@ function generateRandomKeyCode(rawPrefix) {
 }
 
 // ============================================================================
-// 1. ENDPOINT PUBLIC CHO CLIENT APK: POST /api/key/verify
+// A. ENDPOINT CHO CLIENT APK: POST & GET /api/key/verify
 // ============================================================================
-router.post("/key/verify", (req, res) => {
-  const state = readDb();
-  syncExpiredKeys(state);
+async function handleVerifyKey(req, res) {
+  try {
+    const state = await loadState();
+    await syncExpiredKeys(state);
 
-  const { key, deviceName, hwid, osVersion } = req.body || {};
-  const cleanKey = String(key || "").trim().toUpperCase();
+    const source = req.method === "GET" ? req.query : req.body || {};
+    const { key, deviceName, hwid, osVersion } = source;
+    const cleanKey = String(key || "").trim().toUpperCase();
 
-  if (!cleanKey) {
-    return res.status(400).json({
-      success: false,
-      message: "Vui lòng nhập mã License Key!",
-    });
-  }
-
-  const record = state.license_keys.find(
-    (k) => String(k.key_code).toUpperCase() === cleanKey
-  );
-
-  if (!record) {
-    return res.status(404).json({
-      success: false,
-      message: "Key không tồn tại trên hệ thống Server!",
-    });
-  }
-
-  if (record.status === "banned") {
-    return res.status(403).json({
-      success: false,
-      message: "Key này đã bị Admin khóa (Banned)!",
-    });
-  }
-
-  if (record.status === "expired") {
-    return res.status(403).json({
-      success: false,
-      message: `Key đã hết hạn vào ${formatVNDateTime(record.expires_at)}!`,
-    });
-  }
-
-  const clientDevice = String(deviceName || "iPhone 12 Pro").trim();
-  const clientHwid = String(hwid || clientDevice).trim();
-  const clientOs = String(osVersion || "26.6.1").trim();
-  const now = new Date();
-
-  if (record.status === "available") {
-    const expDate = new Date(now.getTime() + record.duration_hours * 3600 * 1000);
-    record.status = "active";
-    record.hwid = clientHwid;
-    record.device_name = clientDevice;
-    record.os_version = clientOs;
-    record.activated_at = now.toISOString();
-    record.expires_at = expDate.toISOString();
-
-    state.activation_logs.push({
-      id: Date.now(),
-      key_code: record.key_code,
-      device_name: clientDevice,
-      hwid: clientHwid,
-      activated_date: now.toISOString().slice(0, 10),
-      created_at: now.toISOString(),
-    });
-    writeDb(state);
-  } else if (record.status === "active") {
-    if (record.hwid && record.hwid !== clientHwid) {
-      return res.status(403).json({
-        success: false,
-        message: `Key đã được gắn cố định với thiết bị (${record.device_name})! Liên hệ Admin để Reset HWID.`,
+    // Nếu truy cập GET /api/key/verify trên trình duyệt mà chưa truyền ?key=...
+    if (req.method === "GET" && !cleanKey) {
+      return res.json({
+        success: true,
+        status: "online",
+        endpoint: "POST /api/key/verify",
+        apiServer: "6.1.0",
+        message:
+          "API Server Key đang hoạt động! Gửi POST { key, deviceName } hoặc truy cập ?key=NGBAO-VIP1-2026-FF99 để kiểm tra.",
       });
     }
-    if (!record.hwid) {
+
+    if (!cleanKey) {
+      return res.status(400).json({
+        success: false,
+        message: "Key không hợp lệ hoặc đã hết hạn!",
+      });
+    }
+
+    const record = state.license_keys.find(
+      (k) => String(k.key_code).toUpperCase() === cleanKey
+    );
+
+    if (!record || record.status === "banned" || record.status === "expired") {
+      return res.status(403).json({
+        success: false,
+        message: "Key không hợp lệ hoặc đã hết hạn!",
+      });
+    }
+
+    const clientDevice = String(deviceName || "Android Device").trim();
+    const clientHwid = String(hwid || clientDevice).trim();
+    const clientOs = String(osVersion || "Android 14").trim();
+    const now = new Date();
+
+    if (record.status === "available") {
+      const expDate = new Date(
+        now.getTime() + (record.duration_hours || 24) * 3600 * 1000
+      );
+      record.status = "active";
       record.hwid = clientHwid;
       record.device_name = clientDevice;
       record.os_version = clientOs;
-      writeDb(state);
+      record.activated_at = now.toISOString();
+      record.expires_at = expDate.toISOString();
+
+      state.activation_logs.push({
+        id: Date.now(),
+        key_code: record.key_code,
+        device_name: clientDevice,
+        hwid: clientHwid,
+        activated_date: now.toISOString().slice(0, 10),
+        created_at: now.toISOString(),
+      });
+      await saveState(state);
+    } else if (record.status === "active") {
+      if (
+        record.hwid &&
+        record.hwid !== clientHwid &&
+        record.device_name &&
+        record.device_name !== clientDevice
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "Key không hợp lệ hoặc đã hết hạn! (Key đang gắn với thiết bị khác)",
+        });
+      }
+      if (!record.hwid) {
+        record.hwid = clientHwid;
+        record.device_name = clientDevice;
+        record.os_version = clientOs;
+        await saveState(state);
+      }
     }
+
+    const finalDevice = record.device_name || clientDevice;
+    const finalOs = record.os_version || clientOs;
+
+    return res.status(200).json({
+      success: true,
+      message: "Kích hoạt thành công!",
+      data: {
+        greeting: `Hi ${finalDevice}`,
+        expireAt: formatVNDateTime(record.expires_at),
+        deviceName: finalDevice,
+        osVersion: finalOs,
+        apiServer: "6.1.0",
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi xử lý Server Key: " + err.message,
+    });
   }
+}
 
-  const finalDevice = record.device_name || clientDevice;
-  const finalOs = record.os_version || clientOs;
-  const shortGreetingName = finalDevice.toLowerCase().includes("iphone")
-    ? "iPhone"
-    : finalDevice.split(" ")[0] || "User";
-
-  return res.json({
-    success: true,
-    message: "Kích hoạt thành công!",
-    data: {
-      greeting: `Hi ${shortGreetingName}`,
-      expireAt: formatVNDateTime(record.expires_at),
-      deviceName: finalDevice,
-      osVersion: finalOs,
-      apiServer: "6.1.0",
-    },
-  });
-});
+router.post("/key/verify", handleVerifyKey);
+router.get("/key/verify", handleVerifyKey);
 
 // ============================================================================
-// 2. THỐNG KÊ DASHBOARD OVERVIEW: GET /api/stats
+// B. CÁC ENDPOINT CHO TRANG WEB QUẢN TRỊ (ADMIN.JS)
 // ============================================================================
-router.get("/stats", verifyToken, (req, res) => {
-  const state = readDb();
-  syncExpiredKeys(state);
 
-  const isSuper = req.user.role === "super_admin";
+// 4. GET /api/stats
+router.get("/stats", verifyToken, async (req, res) => {
+  const state = await loadState();
+  await syncExpiredKeys(state);
+
+  const isSuper = req.user.role === "super_admin" || req.user.role === "admin";
   const keys = isSuper
     ? state.license_keys
     : state.license_keys.filter((k) => k.created_by === req.user.username);
@@ -194,7 +209,7 @@ router.get("/stats", verifyToken, (req, res) => {
       d.getMonth() + 1
     ).padStart(2, "0")}`;
 
-    const count = state.activation_logs.filter(
+    const count = (state.activation_logs || []).filter(
       (l) => l.activated_date === dateStr
     ).length;
 
@@ -214,19 +229,17 @@ router.get("/stats", verifyToken, (req, res) => {
   });
 });
 
-// ============================================================================
-// 3. DANH SÁCH & BỘ LỌC KEY: GET /api/keys
-// ============================================================================
-router.get("/keys", verifyToken, (req, res) => {
-  const state = readDb();
-  syncExpiredKeys(state);
+// 5. GET /api/keys
+router.get("/keys", verifyToken, async (req, res) => {
+  const state = await loadState();
+  await syncExpiredKeys(state);
 
   const { status = "all", search = "" } = req.query;
   const q = String(search || "").trim().toLowerCase();
 
   let list = state.license_keys.slice();
 
-  if (req.user.role !== "super_admin") {
+  if (req.user.role !== "super_admin" && req.user.role !== "admin") {
     list = list.filter((k) => k.created_by === req.user.username);
   }
 
@@ -244,7 +257,7 @@ router.get("/keys", verifyToken, (req, res) => {
     );
   }
 
-  list.sort((a, b) => b.id - a.id);
+  list.reverse();
 
   const formatted = list.map((r) => ({
     ...r,
@@ -258,10 +271,8 @@ router.get("/keys", verifyToken, (req, res) => {
   });
 });
 
-// ============================================================================
-// 4. TẠO KEY (LẺ HOẶC HÀNG LOẠT): POST /api/keys/generate
-// ============================================================================
-router.post("/keys/generate", verifyToken, (req, res) => {
+// 6. POST /api/keys/generate
+router.post("/keys/generate", verifyToken, async (req, res) => {
   const {
     prefix = "NGBAO-",
     duration = "1d",
@@ -269,20 +280,13 @@ router.post("/keys/generate", verifyToken, (req, res) => {
     note = "",
   } = req.body || {};
 
-  const durationConfig = DURATION_OPTIONS[duration];
-  if (!durationConfig) {
-    return res.status(400).json({
-      success: false,
-      message: "Thời hạn Key không hợp lệ!",
-    });
-  }
-
-  const state = readDb();
+  const durationConfig = DURATION_OPTIONS[duration] || DURATION_OPTIONS["1d"];
+  const state = await loadState();
   const count = Math.min(Math.max(parseInt(quantity, 10) || 1, 1), 100);
   const totalCost = durationConfig.creditCost * count;
 
-  const dbUser = state.users.find((u) => u.id === req.user.id);
-  if (req.user.role !== "super_admin") {
+  const dbUser = state.users.find((u) => String(u.id) === String(req.user.id));
+  if (req.user.role !== "super_admin" && req.user.role !== "admin") {
     if (!dbUser || dbUser.credits < totalCost) {
       return res.status(403).json({
         success: false,
@@ -296,8 +300,7 @@ router.post("/keys/generate", verifyToken, (req, res) => {
 
   const createdKeys = [];
   const nowIso = new Date().toISOString();
-  let nextId =
-    state.license_keys.reduce((max, k) => Math.max(max, k.id || 0), 0) + 1;
+  let nextId = state.license_keys.length + 1 + Date.now();
 
   for (let i = 0; i < count; i++) {
     let code = generateRandomKeyCode(prefix);
@@ -313,7 +316,7 @@ router.post("/keys/generate", verifyToken, (req, res) => {
       status: "available",
       hwid: "",
       device_name: "",
-      os_version: "",
+      os_version: "Android 14",
       note: String(note || "").trim(),
       created_by: req.user.username,
       created_at: nowIso,
@@ -323,7 +326,7 @@ router.post("/keys/generate", verifyToken, (req, res) => {
     createdKeys.push(code);
   }
 
-  writeDb(state);
+  await saveState(state);
 
   res.json({
     success: true,
@@ -335,17 +338,19 @@ router.post("/keys/generate", verifyToken, (req, res) => {
   });
 });
 
-// ============================================================================
-// 5. CÁC HÀNH ĐỘNG NHANH TRÊN BẢNG QUẢN LÝ KEY
-// ============================================================================
 function getAuthorizedKey(state, req, res, keyId) {
-  const idNum = parseInt(keyId, 10);
-  const record = state.license_keys.find((k) => k.id === idNum);
+  const record = state.license_keys.find(
+    (k) => String(k.id) === String(keyId) || String(k._id) === String(keyId)
+  );
   if (!record) {
     res.status(404).json({ success: false, message: "Không tìm thấy Key này!" });
     return null;
   }
-  if (req.user.role !== "super_admin" && record.created_by !== req.user.username) {
+  if (
+    req.user.role !== "super_admin" &&
+    req.user.role !== "admin" &&
+    record.created_by !== req.user.username
+  ) {
     res.status(403).json({
       success: false,
       message: "Bạn chỉ có quyền quản lý Key do chính mình tạo!",
@@ -355,14 +360,15 @@ function getAuthorizedKey(state, req, res, keyId) {
   return record;
 }
 
-router.post("/keys/:id/reset-hwid", verifyToken, (req, res) => {
-  const state = readDb();
+// 7. POST /api/keys/:id/reset-hwid
+router.post("/keys/:id/reset-hwid", verifyToken, async (req, res) => {
+  const state = await loadState();
   const record = getAuthorizedKey(state, req, res, req.params.id);
   if (!record) return;
 
   record.hwid = "";
   record.device_name = "";
-  writeDb(state);
+  await saveState(state);
 
   res.json({
     success: true,
@@ -370,13 +376,14 @@ router.post("/keys/:id/reset-hwid", verifyToken, (req, res) => {
   });
 });
 
-router.post("/keys/:id/extend", verifyToken, (req, res) => {
-  const state = readDb();
+// 8. POST /api/keys/:id/extend
+router.post("/keys/:id/extend", verifyToken, async (req, res) => {
+  const state = await loadState();
   const record = getAuthorizedKey(state, req, res, req.params.id);
   if (!record) return;
 
   const addHours = parseInt(req.body.addHours, 10) || 24;
-  record.duration_hours += addHours;
+  record.duration_hours = (record.duration_hours || 24) + addHours;
 
   if (record.expires_at) {
     const baseTime =
@@ -394,7 +401,7 @@ router.post("/keys/:id/extend", verifyToken, (req, res) => {
   const baseLabel = String(record.duration_label).split(" (+")[0];
   record.duration_label = `${baseLabel} (${addDaysLabel})`;
 
-  writeDb(state);
+  await saveState(state);
 
   res.json({
     success: true,
@@ -402,8 +409,9 @@ router.post("/keys/:id/extend", verifyToken, (req, res) => {
   });
 });
 
-router.post("/keys/:id/toggle-ban", verifyToken, (req, res) => {
-  const state = readDb();
+// 9. POST /api/keys/:id/toggle-ban
+router.post("/keys/:id/toggle-ban", verifyToken, async (req, res) => {
+  const state = await loadState();
   const record = getAuthorizedKey(state, req, res, req.params.id);
   if (!record) return;
 
@@ -413,7 +421,7 @@ router.post("/keys/:id/toggle-ban", verifyToken, (req, res) => {
     record.status = "banned";
   }
 
-  writeDb(state);
+  await saveState(state);
 
   res.json({
     success: true,
@@ -425,13 +433,16 @@ router.post("/keys/:id/toggle-ban", verifyToken, (req, res) => {
   });
 });
 
-router.delete("/keys/:id", verifyToken, (req, res) => {
-  const state = readDb();
+// 10. DELETE /api/keys/:id
+router.delete("/keys/:id", verifyToken, async (req, res) => {
+  const state = await loadState();
   const record = getAuthorizedKey(state, req, res, req.params.id);
   if (!record) return;
 
-  state.license_keys = state.license_keys.filter((k) => k.id !== record.id);
-  writeDb(state);
+  state.license_keys = state.license_keys.filter(
+    (k) => String(k.id) !== String(record.id)
+  );
+  await saveState(state);
 
   res.json({
     success: true,
