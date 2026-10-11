@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const fs = require("fs");
 
 const authRoutes = require("./routes/authRoutes");
 const keyRoutes = require("./routes/keyRoutes");
@@ -16,29 +17,38 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Phục vụ file tĩnh trong public/
-app.use(express.static(path.join(__dirname, "public")));
+const publicDir = path.join(__dirname, "public");
+app.use(express.static(publicDir));
 
 // Mount API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api", keyRoutes);
 app.use("/api", userRoutes);
 
-// Route vào trang Quản trị Web Admin (/ và /admin)
-app.get(["/", "/admin"], (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "admin.html"));
+// Phục vụ các file giao diện Web Admin
+app.get(["/", "/admin", "/admin.html"], (req, res) => {
+  res.sendFile(path.join(publicDir, "admin.html"));
 });
 
-// Chỉ chạy app.listen khi chạy trực tiếp trên máy hoặc VPS (không phải Vercel Serverless)
+app.get("/admin.css", (req, res) => {
+  res.type("text/css").sendFile(path.join(publicDir, "admin.css"));
+});
+
+app.get("/admin.js", (req, res) => {
+  res.type("application/javascript").sendFile(path.join(publicDir, "admin.js"));
+});
+
+app.get("/avatar.jpg", (req, res) => {
+  const imgPath = path.join(publicDir, "avatar.jpg");
+  if (fs.existsSync(imgPath)) {
+    return res.type("image/jpeg").sendFile(imgPath);
+  }
+  res.status(404).end();
+});
+
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log("==========================================================");
-    console.log(`🚀 FF SERVER KEY & WEB ADMIN RUNNING ON PORT ${PORT}`);
-    console.log(`🔑 Web Admin Panel : http://localhost:${PORT}/admin`);
-    console.log(`🔌 API Verify APK  : http://localhost:${PORT}/api/key/verify`);
-    console.log("👤 Super Admin     : admin / admin123456");
-    console.log("👤 Reseller        : reseller / reseller123");
-    console.log("==========================================================");
+    console.log(`FF Server Key running on http://localhost:${PORT}`);
   });
 }
 
