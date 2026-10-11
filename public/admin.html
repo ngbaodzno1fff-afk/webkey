@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FF Key Server — Web Admin & Key Generator Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            obsidian: '#090507',
+            panel: '#120a0d',
+            panelLight: '#1b1014',
+            crimson: '#e11d48',
+            neonRed: '#ff2a4b',
+            neonOrange: '#ff6b2b',
+          }
+        }
+      }
+    };
+  </script>
+  <link rel="stylesheet" href="/admin.css" />
+</head>
+<body class="bg-obsidian text-zinc-100 min-h-screen antialiased selection:bg-rose-600 selection:text-white">
+
+  <!-- Nền Gaming Đỏ - Đen Neon -->
+  <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+    <div class="admin-orb orb-top-left"></div>
+    <div class="admin-orb orb-bottom-right"></div>
+    <div class="admin-grid-overlay"></div>
+  </div>
+
+  <!-- Toast thông báo nổi -->
+  <div id="toastContainer" class="fixed top-5 right-5 z-[100] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- ===================================================================== -->
+  <!-- A. TRANG ĐĂNG NHẬP (LOGIN VIEW)                                       -->
+  <!-- ===================================================================== -->
+  <section id="loginView" class="relative z-10 min-h-screen flex items-center justify-center p-4">
+    <div class="gaming-card w-full max-w-md p-7 sm:p-8 rounded-3xl border border-rose-500/25 shadow-2xl">
+      <!-- Logo & Tiêu đề -->
+      <div class="flex flex-col items-center text-center mb-6">
+        <div class="w-20 h-20 rounded-2xl overflow-hidden border border-rose-500/40 shadow-lg shadow-rose-950/60 mb-4">
+          <img src="/avatar.jpg" alt="FF Admin Logo" class="w-full h-full object-cover" />
+        </div>
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold tracking-wider uppercase mb-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          APIServer v6.1.0 Online
+        </div>
+        <h1 class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white via-rose-200 to-orange-400 bg-clip-text text-transparent">
+          FF SERVER KEY ADMIN
+        </h1>
+        <p class="text-xs text-zinc-400 mt-1">Hệ thống Quản lý & Tạo License Key Bản Quyền APK</p>
+      </div>
+
+      <!-- Nút điền nhanh tài khoản để test -->
+      <div class="grid grid-cols-2 gap-2.5 mb-5">
+        <button type="button" id="btnFillAdmin" class="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-xs font-medium text-rose-200 transition flex items-center justify-center gap-1.5">
+          <span>👑</span> Điền Super Admin
+        </button>
+        <button type="button" id="btnFillReseller" class="px-3 py-2 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 text-xs font-medium text-orange-200 transition flex items-center justify-center gap-1.5">
+          <span>🤝</span> Điền Đại Lý (Test)
+        </button>
+      </div>
+
+      <!-- Form Đăng nhập -->
+      <form id="loginForm" class="space-y-4" autocomplete="off">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">Tài khoản</label>
+          <input
+            type="text"
+            id="loginUsername"
+            required
+            placeholder="Nhập tên tài khoản (admin)..."
+            class="gaming-input w-full px-4 py-3 rounded-xl text-sm"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">Mật khẩu</label>
+          <input
+            type="password"
+            id="loginPassword"
+            required
+            placeholder="Nhập mật khẩu (admin123456)..."
+            class="gaming-input w-full px-4 py-3 rounded-xl text-sm"
+          />
+        </div>
+
+        <!-- Captcha chống Brute-force -->
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">Mã bảo vệ (Captcha)</label>
+          <div class="flex items-center gap-2.5">
+            <div id="captchaQuestionBox" class="px-4 py-3 rounded-xl bg-rose-950/50 border border-rose-500/30 font-mono font-bold text-rose-300 text-sm whitespace-nowrap select-none">
+              ... + ... = ?
+            </div>
+            <input
+              type="number"
+              id="loginCaptcha"
+              required
+              placeholder="Kết quả..."
+              class="gaming-input flex-1 px-4 py-3 rounded-xl text-sm"
+            />
+            <button
+              type="button"
+              id="btnRefreshCaptcha"
+              title="Đổi mã Captcha"
+              class="p-3 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition"
+            >
+              🔄
+            </button>
+          </div>
+        </div>
+
+        <p id="loginError" class="text-xs text-rose-400 min-h-[18px]"></p>
+
+        <button
+          type="submit"
+          id="btnLoginSubmit"
+          class="neon-btn w-full py-3.5 rounded-xl font-bold text-sm tracking-wide uppercase shadow-lg transition"
+        >
+          Đăng Nhập Hệ Thống
+        </button>
+      </form>
+
+      <div class="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-zinc-400">
+        <span>Mặc định: <code class="text-rose-300">admin / admin123456</code></span>
+        <a href="/" target="_blank" class="text-orange-400 hover:underline font-medium">Mở Giao Diện APK ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- GIAO DIỆN QUẢN TRỊ CHÍNH (DASHBOARD SHELL)                            -->
+  <!-- ===================================================================== -->
+  <div id="dashboardShell" class="relative z-10 min-h-screen flex flex-col lg:flex-row hidden">
+
+    <!-- SIDEBAR ĐIỀU HƯỚNG -->
+    <aside class="w-full lg:w-72 gaming-sidebar border-b lg:border-b-0 lg:border-r border-rose-500/20 flex flex-col justify-between p-4 lg:p-6 shrink-0">
+      <div>
+        <!-- Brand Header -->
+        <div class="flex items-center justify-between lg:justify-start gap-3.5 mb-6">
+          <div class="flex items-center gap-3">
+            <img src="/avatar.jpg" alt="Avatar" class="w-11 h-11 rounded-xl object-cover border border-rose-500/40 shadow" />
+            <div>
+              <h2 class="font-extrabold text-base tracking-tight text-white flex items-center gap-1.5">
+                FF KEY PANEL
+                <span class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-gradient-to-r from-rose-600 to-orange-500 text-white">v6.1</span>
+              </h2>
+              <p class="text-xs text-zinc-400">License Auth Server</p>
+            </div>
+          </div>
+
+          <!-- Nút Đăng xuất trên Mobile -->
+          <button type="button" id="btnLogoutMobile" class="lg:hidden px-3 py-1.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-xs text-rose-300">
+            Thoát
+          </button>
+        </div>
+
+        <!-- Thông tin User đang đăng nhập -->
+        <div class="p-3.5 rounded-2xl bg-gradient-to-br from-rose-950/50 to-zinc-900/90 border border-rose-500/25 mb-6">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs text-zinc-400">Tài khoản:</span>
+            <span id="badgeUserRole" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+              SUPER ADMIN
+            </span>
+          </div>
+          <div id="sidebarUsername" class="font-bold text-base text-white truncate">admin</div>
+          <div class="mt-2 pt-2 border-t border-white/10 flex items-center justify-between text-xs">
+            <span class="text-zinc-400">Số dư Credit:</span>
+            <span id="sidebarCredits" class="font-mono font-bold text-amber-400">∞ Vô hạn</span>
+          </div>
+        </div>
+
+        <!-- Menu điều hướng -->
+        <nav class="flex lg:flex-col gap-2 overflow-x-auto pb-1 lg:pb-0">
+          <button type="button" data-tab="tabOverview" class="nav-tab active">
+            <span>📊</span>
+            <span>Tổng Quan & Tạo Key</span>
+          </button>
+          <button type="button" data-tab="tabKeys" class="nav-tab">
+            <span>🔑</span>
+            <span>Bảng Quản Lý Key</span>
+          </button>
+          <button type="button" data-tab="tabResellers" id="navTabResellers" class="nav-tab">
+            <span>👥</span>
+            <span>Quản Lý Đại Lý (Reseller)</span>
+          </button>
+          <button type="button" data-tab="tabApiDocs" class="nav-tab">
+            <span>🔌</span>
+            <span>Tích Hợp APK & Deploy</span>
+          </button>
+        </nav>
+      </div>
+
+      <!-- Footer Sidebar -->
+      <div class="hidden lg:flex flex-col gap-2.5 pt-6 border-t border-white/10">
+        <a
+          href="/"
+          target="_blank"
+          class="w-full py-2.5 px-4 rounded-xl bg-zinc-800/80 hover:bg-zinc-700/80 border border-white/10 text-xs font-semibold text-center text-zinc-200 transition flex items-center justify-center gap-2"
+        >
+          <span>📱</span> Mở Màn Hình Nhập Key APK
+        </a>
+        <button
+          type="button"
+          id="btnLogoutDesktop"
+          class="w-full py-2.5 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-xs font-semibold text-rose-300 transition"
+        >
+          Đăng Xuất
+        </button>
+      </div>
+    </aside>
+
+    <!-- NỘI DUNG CHÍNH -->
+    <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto space-y-6">
+
+      <!-- ================================================================= -->
+      <!-- TAB 1: BẢNG ĐIỀU KHIỂN (OVERVIEW) & CÔNG CỤ TẠO KEY               -->
+      <!-- ================================================================= -->
+      <div id="tabOverview" class="tab-pane space-y-6">
+
+        <!-- B. 4 Card Thống kê trực quan -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="stat-card border-rose-500/25">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Tổng Key Đã Tạo</span>
+              <span class="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">📦</span>
+            </div>
+            <div id="statTotal" class="text-3xl font-extrabold text-white mt-2">0</div>
+            <p class="text-[11px] text-zinc-400 mt-1">Toàn bộ mã key trên Server</p>
+          </div>
+
+          <div class="stat-card border-emerald-500/25">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Đang Hoạt Động</span>
+              <span class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">⚡</span>
+            </div>
+            <div id="statActive" class="text-3xl font-extrabold text-emerald-400 mt-2">0</div>
+            <p class="text-[11px] text-zinc-400 mt-1">Đã gắn thiết bị HWID</p>
+          </div>
+
+          <div class="stat-card border-amber-500/25">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Chưa Kích Hoạt</span>
+              <span class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">✨</span>
+            </div>
+            <div id="statAvailable" class="text-3xl font-extrabold text-amber-400 mt-2">0</div>
+            <p class="text-[11px] text-zinc-400 mt-1">Sẵn sàng gửi cho khách</p>
+          </div>
+
+          <div class="stat-card border-zinc-600/40">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Hết Hạn / Đã Khóa</span>
+              <span class="w-9 h-9 rounded-xl bg-zinc-700/40 border border-zinc-600 flex items-center justify-center text-zinc-300">🔒</span>
+            </div>
+            <div id="statExpiredBanned" class="text-3xl font-extrabold text-rose-400 mt-2">0</div>
+            <p class="text-[11px] text-zinc-400 mt-1">Ngừng truy cập vào APK</p>
+          </div>
+        </div>
+
+        <!-- Cột đôi: Công cụ Tạo Key (Trái) + Biểu đồ Kích hoạt 7 ngày (Phải) -->
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+
+          <!-- C. CHỨC NĂNG TẠO KEY (KEY GENERATOR TOOL) -->
+          <div class="xl:col-span-7 gaming-card p-6 rounded-3xl border border-rose-500/25">
+            <div class="flex items-center justify-between mb-5">
+              <div>
+                <h3 class="text-lg font-extrabold text-white flex items-center gap-2">
+                  <span class="text-rose-500">⚡</span> Công Cụ Tạo License Key (Key Generator)
+                </h3>
+                <p class="text-xs text-zinc-400">Tạo 1 key lẻ hoặc tạo hàng loạt (Bulk Create) xuất file .TXT</p>
+              </div>
+            </div>
+
+            <form id="generateKeyForm" class="space-y-4" autocomplete="off">
+              <!-- Tùy chỉnh Tiền tố (Prefix) -->
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-1.5">
+                  1. Tiền tố mã Key (Prefix)
+                </label>
+                <div class="flex flex-wrap gap-2 mb-2">
+                  <button type="button" data-prefix="NGBAO-" class="prefix-chip active">NGBAO-</button>
+                  <button type="button" data-prefix="FFVIP-" class="prefix-chip">FFVIP-</button>
+                  <button type="button" data-prefix="KEY-" class="prefix-chip">KEY-</button>
+                  <button type="button" data-prefix="PROFF-" class="prefix-chip">PROFF-</button>
+                </div>
+                <input
+                  type="text"
+                  id="genPrefix"
+                  value="NGBAO-"
+                  placeholder="Ví dụ: NGBAO-, FFVIP-, KEY-..."
+                  class="gaming-input w-full px-4 py-2.5 rounded-xl text-sm font-mono uppercase"
+                />
+              </div>
+
+              <!-- Chọn thời hạn & Số lượng tạo -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-1.5">
+                    2. Thời hạn sử dụng
+                  </label>
+                  <select id="genDuration" class="gaming-input w-full px-4 py-2.5 rounded-xl text-sm">
+                    <optgroup label="Gói Test (Dùng thử)">
+                      <option value="2h">⏱️ 2 Giờ (Test - 1 Credit)</option>
+                      <option value="12h">⏱️ 12 Giờ (Test - 2 Credit)</option>
+                    </optgroup>
+                    <optgroup label="Gói Tiêu Chuẩn">
+                      <option value="1d" selected>📅 1 Ngày (24 Giờ - 5 Credit)</option>
+                      <option value="7d">📅 7 Ngày (1 Tuần - 20 Credit)</option>
+                      <option value="30d">📅 30 Ngày (1 Tháng - 60 Credit)</option>
+                      <option value="90d">📅 90 Ngày (3 Tháng - 150 Credit)</option>
+                    </optgroup>
+                    <optgroup label="Gói Vĩnh Viễn">
+                      <option value="999d">👑 Vĩnh viễn - Lifetime (999 Ngày - 500 Credit)</option>
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-1.5">
+                    3. Số lượng tạo (Bulk Create)
+                  </label>
+                  <div class="flex gap-1.5 mb-2">
+                    <button type="button" data-qty="1" class="qty-chip active">1</button>
+                    <button type="button" data-qty="5" class="qty-chip">5</button>
+                    <button type="button" data-qty="10" class="qty-chip">10</button>
+                    <button type="button" data-qty="50" class="qty-chip">50</button>
+                    <button type="button" data-qty="100" class="qty-chip">100</button>
+                  </div>
+                  <input
+                    type="number"
+                    id="genQuantity"
+                    value="1"
+                    min="1"
+                    max="100"
+                    class="gaming-input w-full px-4 py-2 rounded-xl text-sm font-mono"
+                  />
+                </div>
+              </div>
+
+              <!-- Ghi chú khách hàng -->
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-1.5">
+                  4. Ghi chú khách hàng (Note)
+                </label>
+                <input
+                  type="text"
+                  id="genNote"
+                  placeholder="Nhập tên khách mua, Zalo/Telegram hoặc ghi chú đại lý..."
+                  class="gaming-input w-full px-4 py-2.5 rounded-xl text-sm"
+                />
+              </div>
+
+              <button
+                type="submit"
+                id="btnGenerateSubmit"
+                class="neon-btn w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg transition flex items-center justify-center gap-2"
+              >
+                <span>🚀</span> Tạo License Key Ngay
+              </button>
+            </form>
+          </div>
+
+          <!-- BIỂU ĐỒ KÍCH HOẠT 7 NGÀY GẦN NHẤT -->
+          <div class="xl:col-span-5 gaming-card p-6 rounded-3xl border border-rose-500/25 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="text-lg font-extrabold text-white">📈 Biểu Đồ Kích Hoạt Key</h3>
+                  <p class="text-xs text-zinc-400">Số lượng thiết bị kích hoạt trong 7 ngày qua</p>
+                </div>
+                <span class="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-xs font-semibold text-rose-300">
+                  Real-time
+                </span>
+              </div>
+
+              <!-- Khu vực vẽ biểu đồ cột Neon -->
+              <div id="activationChart" class="h-56 pt-6 pb-2 px-2 flex items-end justify-between gap-2.5 border-b border-white/10">
+                <!-- Render bằng JS -->
+              </div>
+            </div>
+
+            <!-- Khung Copy nhanh Endpoint API Verify -->
+            <div class="mt-5 p-4 rounded-2xl bg-black/45 border border-white/10">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-semibold text-zinc-300">🔌 Endpoint API Verify cho APK:</span>
+                <button type="button" id="btnCopyApiUrl" class="text-xs text-rose-400 hover:text-rose-300 font-semibold">
+                  Copy URL
+                </button>
+              </div>
+              <code id="apiVerifyEndpointText" class="block text-xs font-mono text-emerald-400 break-all">
+                POST http://localhost:3000/api/key/verify
+              </code>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 2: BẢNG QUẢN LÝ KEY (KEY MANAGEMENT TABLE)                    -->
+      <!-- ================================================================= -->
+      <div id="tabKeys" class="tab-pane space-y-5 hidden">
+        <div class="gaming-card p-5 sm:p-6 rounded-3xl border border-rose-500/25">
+
+          <!-- Thanh tìm kiếm & Bộ lọc trạng thái -->
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
+            <div>
+              <h3 class="text-lg font-extrabold text-white">🔑 Danh Sách Quản Lý License Key</h3>
+              <p class="text-xs text-zinc-400">Tìm kiếm, Reset HWID đổi máy, Gia hạn thêm ngày hoặc Khóa Key từ xa</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="relative flex-1 sm:w-72">
+                <input
+                  type="text"
+                  id="searchKeyInput"
+                  placeholder="Tìm mã Key, tên khách, HWID..."
+                  class="gaming-input w-full pl-9 pr-4 py-2 rounded-xl text-xs"
+                />
+                <span class="absolute left-3 top-2.5 text-zinc-400 text-xs">🔍</span>
+              </div>
+              <button
+                type="button"
+                id="btnRefreshKeys"
+                class="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-white/10 text-xs font-semibold text-zinc-200 transition"
+              >
+                🔄 Làm mới
+              </button>
+            </div>
+          </div>
+
+          <!-- Bộ lọc trạng thái -->
+          <div class="flex flex-wrap gap-2 mb-5">
+            <button type="button" data-status="all" class="status-filter-btn active">Tất cả</button>
+            <button type="button" data-status="available" class="status-filter-btn">✨ Chưa kích hoạt</button>
+            <button type="button" data-status="active" class="status-filter-btn">⚡ Đang dùng (Active)</button>
+            <button type="button" data-status="expired" class="status-filter-btn">⌛ Hết hạn (Expired)</button>
+            <button type="button" data-status="banned" class="status-filter-btn">🔒 Đã khóa (Banned)</button>
+          </div>
+
+          <!-- Bảng dữ liệu -->
+          <div class="overflow-x-auto rounded-2xl border border-white/10">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-rose-950/40 text-[11px] font-bold uppercase tracking-wider text-zinc-300 border-b border-white/10">
+                  <th class="py-3.5 px-4">Mã Key</th>
+                  <th class="py-3.5 px-3">Thời Hạn</th>
+                  <th class="py-3.5 px-3">Trạng Thái</th>
+                  <th class="py-3.5 px-3">Thiết Bị (HWID / Device)</th>
+                  <th class="py-3.5 px-3">Ngày Kích Hoạt</th>
+                  <th class="py-3.5 px-3">Hết Hạn Lúc</th>
+                  <th class="py-3.5 px-3">Ghi Chú</th>
+                  <th class="py-3.5 px-4 text-right">Hành Động</th>
+                </tr>
+              </thead>
+              <tbody id="keysTableBody" class="divide-y divide-white/5 text-xs">
+                <!-- Render bằng JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 3: QUẢN LÝ ĐẠI LÝ / CỘNG TÁC VIÊN (RESELLER)                  -->
+      <!-- ================================================================= -->
+      <div id="tabResellers" class="tab-pane space-y-6 hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+          <!-- Form tạo Đại lý -->
+          <div class="lg:col-span-5 gaming-card p-6 rounded-3xl border border-rose-500/25">
+            <h3 class="text-lg font-extrabold text-white mb-1">➕ Cấp Tài Khoản Đại Lý (Reseller)</h3>
+            <p class="text-xs text-zinc-400 mb-5">Đại lý chỉ tạo được Key trong hạn mức Credit được cấp và chỉ thấy Key của mình.</p>
+
+            <form id="createResellerForm" class="space-y-4" autocomplete="off">
+              <div>
+                <label class="block text-xs font-semibold uppercase text-zinc-300 mb-1">Tên đăng nhập Đại lý</label>
+                <input type="text" id="resellerUsername" required placeholder="VD: daily_baoff" class="gaming-input w-full px-4 py-2.5 rounded-xl text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase text-zinc-300 mb-1">Mật khẩu</label>
+                <input type="text" id="resellerPassword" required placeholder="Tối thiểu 4 ký tự..." class="gaming-input w-full px-4 py-2.5 rounded-xl text-sm" />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold uppercase text-zinc-300 mb-1">Số Credit cấp sẵn</label>
+                  <input type="number" id="resellerCredits" value="100" min="0" class="gaming-input w-full px-4 py-2.5 rounded-xl text-sm font-mono" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold uppercase text-zinc-300 mb-1">Cấp bậc</label>
+                  <select id="resellerRole" class="gaming-input w-full px-4 py-2.5 rounded-xl text-sm">
+                    <option value="reseller">🤝 Đại lý (Reseller)</option>
+                    <option value="super_admin">👑 Super Admin</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" class="neon-btn w-full py-3 rounded-xl font-bold text-sm uppercase">
+                Tạo Tài Khoản Đại Lý
+              </button>
+            </form>
+          </div>
+
+          <!-- Bảng danh sách Đại lý -->
+          <div class="lg:col-span-7 gaming-card p-6 rounded-3xl border border-rose-500/25">
+            <h3 class="text-lg font-extrabold text-white mb-4">👥 Danh Sách Tài Khoản Hệ Thống</h3>
+            <div class="overflow-x-auto rounded-2xl border border-white/10">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-rose-950/40 text-[11px] font-bold uppercase text-zinc-300 border-b border-white/10">
+                    <th class="py-3 px-4">Tài Khoản</th>
+                    <th class="py-3 px-3">Vai Trò</th>
+                    <th class="py-3 px-3">Số Dư Credit</th>
+                    <th class="py-3 px-3">Đã Tạo</th>
+                    <th class="py-3 px-3">Trạng Thái</th>
+                    <th class="py-3 px-4 text-right">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody id="resellersTableBody" class="divide-y divide-white/5 text-xs">
+                  <!-- Render bằng JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 4: TÀI LIỆU TÍCH HỢP APK & HƯỚNG DẪN DEPLOY                    -->
+      <!-- ================================================================= -->
+      <div id="tabApiDocs" class="tab-pane space-y-6 hidden">
+        <div class="gaming-card p-6 rounded-3xl border border-rose-500/25 space-y-5">
+          <h3 class="text-lg font-extrabold text-white">🔌 Chuẩn Giao Tiếp API Xác Thực Với Client APK</h3>
+          <p class="text-xs text-zinc-300 leading-relaxed">
+            File <code class="text-rose-400">app.js</code> của giao diện APK đã được kết nối tự động tới Endpoint <code class="text-emerald-400">POST /api/key/verify</code>. Dưới đây là cấu trúc Request & Response chuẩn:
+          </p>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="p-4 rounded-2xl bg-black/60 border border-white/10">
+              <div class="text-xs font-bold text-amber-400 mb-2">1. Request gửi từ APK (POST /api/key/verify)</div>
+              <pre class="text-xs font-mono text-zinc-200 overflow-x-auto">{
+  "key": "NGBAO-VIP1-2026-FF99",
+  "deviceName": "iPhone 12 Pro",
+  "hwid": "HWID-IPHONE12PRO-9981",
+  "osVersion": "26.6.1"
+}</pre>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-black/60 border border-white/10">
+              <div class="text-xs font-bold text-emerald-400 mb-2">2. Response JSON trả về cho Màn hình 2 APK</div>
+              <pre class="text-xs font-mono text-zinc-200 overflow-x-auto">{
+  "success": true,
+  "message": "Kích hoạt thành công!",
+  "data": {
+    "greeting": "Hi iPhone",
+    "expireAt": "12-10-2026 2:37:17 CH",
+    "deviceName": "iPhone 12 Pro",
+    "osVersion": "26.6.1",
+    "apiServer": "6.1.0"
+  }
+}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- HỘP THOẠI SAU KHI TẠO KEY (MODAL COPY 1 CHẠM & XUẤT FILE .TXT)        -->
+  <!-- ===================================================================== -->
+  <div id="generatedModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="gaming-card w-full max-w-lg p-6 rounded-3xl border border-rose-500/40 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-extrabold text-white flex items-center gap-2">
+            <span class="text-emerald-400">✅</span> Tạo Key Thành Công!
+          </h3>
+          <p id="generatedModalSub" class="text-xs text-zinc-400 mt-0.5">Danh sách License Key vừa khởi tạo</p>
+        </div>
+        <button type="button" id="btnCloseGenModal" class="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300">✕</button>
+      </div>
+
+      <!-- Danh sách từng key kèm nút Copy 1 chạm -->
+      <div id="generatedKeysList" class="max-h-64 overflow-y-auto space-y-2 pr-1">
+        <!-- Render bằng JS -->
+      </div>
+
+      <!-- Cụm nút Copy tất cả & Xuất file .TXT -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
+        <button
+          type="button"
+          id="btnCopyAllKeys"
+          class="py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase tracking-wider transition"
+        >
+          📋 Copy Tất Cả
+        </button>
+        <button
+          type="button"
+          id="btnExportTxt"
+          class="py-3 px-4 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs uppercase tracking-wider transition"
+        >
+          📥 Xuất File .TXT
+        </button>
+        <button
+          type="button"
+          id="btnTestInApk"
+          class="py-3 px-4 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs uppercase tracking-wider transition"
+        >
+          📱 Thử Trên APK
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- HỘP THOẠI GIA HẠN KEY (EXTEND KEY MODAL)                              -->
+  <!-- ===================================================================== -->
+  <div id="extendModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="gaming-card w-full max-w-sm p-6 rounded-3xl border border-rose-500/40 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-extrabold text-white">⏳ Gia Hạn Sử Dụng Key</h3>
+        <button type="button" id="btnCloseExtendModal" class="w-8 h-8 rounded-lg bg-zinc-800 text-zinc-300">✕</button>
+      </div>
+      <p id="extendKeyLabel" class="text-xs font-mono text-rose-400 break-all"></p>
+
+      <div>
+        <label class="block text-xs font-semibold text-zinc-300 mb-1.5">Chọn thời gian cộng thêm:</label>
+        <select id="extendHoursSelect" class="gaming-input w-full px-4 py-2.5 rounded-xl text-sm">
+          <option value="24">+ 1 Ngày (24 Giờ)</option>
+          <option value="72">+ 3 Ngày (72 Giờ)</option>
+          <option value="168" selected>+ 7 Ngày (1 Tuần)</option>
+          <option value="720">+ 30 Ngày (1 Tháng)</option>
+          <option value="2160">+ 90 Ngày (3 Tháng)</option>
+          <option value="23976">+ 999 Ngày (Vĩnh viễn)</option>
+        </select>
+      </div>
+
+      <button type="button" id="btnConfirmExtend" class="neon-btn w-full py-3 rounded-xl font-bold text-xs uppercase">
+        Xác Nhận Gia Hạn
+      </button>
+    </div>
+  </div>
+
+  <script src="/admin.js"></script>
+</body>
+</html>
