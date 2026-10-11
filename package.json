@@ -1,7 +1,7 @@
 {
   "name": "ff-license-key-server",
-  "version": "1.0.0",
-  "description": "Fullstack License Key Generator & Management Panel for Android APK (Vercel Ready)",
+  "version": "2.0.0",
+  "description": "Fullstack License Key Generator & Management Panel on Vercel Serverless + MongoDB Atlas",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,7 +12,8 @@
     "cors": "^2.8.5",
     "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.8.1"
   },
   "engines": {
     "node": ">=18.0.0"
