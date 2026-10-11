@@ -1,7 +1,7 @@
 {
   "name": "ff-license-key-server",
   "version": "1.0.0",
-  "description": "Fullstack License Key Generator & Management Panel for Android APK",
+  "description": "Fullstack License Key Generator & Management Panel for Android APK (Vercel Ready)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^11.3.0",
     "cors": "^2.8.5",
     "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",
