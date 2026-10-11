@@ -1,20 +1,22 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const db = require("../db/database");
+const { readDb, writeDb } = require("../db/database");
 const { verifyToken, requireSuperAdmin } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
 // Danh sách Đại lý / Tài khoản (Chỉ Super Admin)
 router.get("/users", verifyToken, requireSuperAdmin, (req, res) => {
-  const users = db
-    .prepare(`
-      SELECT u.id, u.username, u.role, u.credits, u.is_active, u.created_at,
-             (SELECT COUNT(*) FROM license_keys k WHERE k.created_by = u.username) AS keys_count
-      FROM users u
-      ORDER BY u.id ASC
-    `)
-    .all();
+  const state = readDb();
+  const users = state.users.map((u) => ({
+    id: u.id,
+    username: u.username,
+    role: u.role,
+    credits: u.credits,
+    is_active: u.is_active,
+    created_at: u.created_at,
+    keys_count: state.license_keys.filter((k) => k.created_by === u.username).length,
+  }));
 
   res.json({
     success: true,
@@ -34,9 +36,10 @@ router.post("/users", verifyToken, requireSuperAdmin, (req, res) => {
     });
   }
 
-  const existing = db
-    .prepare("SELECT id FROM users WHERE username = ?")
-    .get(cleanUser);
+  const state = readDb();
+  const existing = state.users.find(
+    (u) => u.username.toLowerCase() === cleanUser.toLowerCase()
+  );
   if (existing) {
     return res.status(409).json({
       success: false,
@@ -47,11 +50,19 @@ router.post("/users", verifyToken, requireSuperAdmin, (req, res) => {
   const hash = bcrypt.hashSync(String(password), 10);
   const validRole = role === "super_admin" ? "super_admin" : "reseller";
   const initialCredits = Math.max(parseInt(credits, 10) || 0, 0);
+  const nextId =
+    state.users.reduce((max, u) => Math.max(max, u.id || 0), 0) + 1;
 
-  db.prepare(`
-    INSERT INTO users (username, password_hash, role, credits, is_active, created_at)
-    VALUES (?, ?, ?, ?, 1, ?)
-  `).run(cleanUser, hash, validRole, initialCredits, new Date().toISOString());
+  state.users.push({
+    id: nextId,
+    username: cleanUser,
+    password_hash: hash,
+    role: validRole,
+    credits: initialCredits,
+    is_active: 1,
+    created_at: new Date().toISOString(),
+  });
+  writeDb(state);
 
   res.json({
     success: true,
@@ -63,10 +74,10 @@ router.post("/users", verifyToken, requireSuperAdmin, (req, res) => {
 router.post("/users/:id/credits", verifyToken, requireSuperAdmin, (req, res) => {
   const { addCredits = 0 } = req.body || {};
   const delta = parseInt(addCredits, 10) || 0;
+  const idNum = parseInt(req.params.id, 10);
 
-  const target = db
-    .prepare("SELECT id, username, credits FROM users WHERE id = ?")
-    .get(req.params.id);
+  const state = readDb();
+  const target = state.users.find((u) => u.id === idNum);
 
   if (!target) {
     return res.status(404).json({
@@ -75,24 +86,21 @@ router.post("/users/:id/credits", verifyToken, requireSuperAdmin, (req, res) => 
     });
   }
 
-  const nextCredits = Math.max(target.credits + delta, 0);
-  db.prepare("UPDATE users SET credits = ? WHERE id = ?").run(
-    nextCredits,
-    target.id
-  );
+  target.credits = Math.max(target.credits + delta, 0);
+  writeDb(state);
 
   res.json({
     success: true,
-    message: `Đã cập nhật Credit cho ${target.username}: ${nextCredits} Credit!`,
-    credits: nextCredits,
+    message: `Đã cập nhật Credit cho ${target.username}: ${target.credits} Credit!`,
+    credits: target.credits,
   });
 });
 
 // Khóa / Mở khóa tài khoản Đại lý
 router.post("/users/:id/toggle-active", verifyToken, requireSuperAdmin, (req, res) => {
-  const target = db
-    .prepare("SELECT id, username, role, is_active FROM users WHERE id = ?")
-    .get(req.params.id);
+  const idNum = parseInt(req.params.id, 10);
+  const state = readDb();
+  const target = state.users.find((u) => u.id === idNum);
 
   if (!target) {
     return res.status(404).json({
@@ -108,15 +116,12 @@ router.post("/users/:id/toggle-active", verifyToken, requireSuperAdmin, (req, re
     });
   }
 
-  const nextState = target.is_active ? 0 : 1;
-  db.prepare("UPDATE users SET is_active = ? WHERE id = ?").run(
-    nextState,
-    target.id
-  );
+  target.is_active = target.is_active ? 0 : 1;
+  writeDb(state);
 
   res.json({
     success: true,
-    message: nextState
+    message: target.is_active
       ? `Đã mở khóa tài khoản Đại lý ${target.username}!`
       : `Đã khóa tài khoản Đại lý ${target.username}!`,
   });
