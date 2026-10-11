@@ -1,11 +1,10 @@
 const express = require("express");
 const crypto = require("crypto");
-const db = require("../db/database");
+const { readDb, writeDb } = require("../db/database");
 const { verifyToken } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// Bảng quy đổi thời hạn và chi phí Credit cho Đại lý (Reseller)
 const DURATION_OPTIONS = {
   "2h": { hours: 2, label: "2 Giờ (Test)", creditCost: 1 },
   "12h": { hours: 12, label: "12 Giờ (Test)", creditCost: 2 },
@@ -16,10 +15,6 @@ const DURATION_OPTIONS = {
   "999d": { hours: 24 * 999, label: "Vĩnh viễn (999 Ngày)", creditCost: 500 },
 };
 
-/**
- * Định dạng ngày giờ kiểu Việt Nam: DD-MM-YYYY h:mm:ss SA/CH
- * Khớp chuẩn màn hình mẫu: "12-10-2026 2:37:17 CH"
- */
 function formatVNDateTime(isoStr) {
   if (!isoStr) return "Chưa kích hoạt";
   const d = new Date(isoStr);
@@ -39,21 +34,20 @@ function formatVNDateTime(isoStr) {
   return `${day}-${month}-${year} ${hours12}:${mins}:${secs} ${period}`;
 }
 
-/**
- * Tự động cập nhật trạng thái các Key đã quá hạn sang 'expired'
- */
-function syncExpiredKeys() {
-  const nowIso = new Date().toISOString();
-  db.prepare(`
-    UPDATE license_keys
-    SET status = 'expired'
-    WHERE status = 'active' AND expires_at != '' AND expires_at < ?
-  `).run(nowIso);
+function syncExpiredKeys(state) {
+  const nowMs = Date.now();
+  let changed = false;
+  for (const k of state.license_keys) {
+    if (k.status === "active" && k.expires_at) {
+      if (new Date(k.expires_at).getTime() < nowMs) {
+        k.status = "expired";
+        changed = true;
+      }
+    }
+  }
+  if (changed) writeDb(state);
 }
 
-/**
- * Sinh chuỗi Key ngẫu nhiên theo Prefix: VD NGBAO-8F4K-92MA-X7Q1
- */
 function generateRandomKeyCode(rawPrefix) {
   let cleanPrefix = String(rawPrefix || "NGBAO-")
     .toUpperCase()
@@ -78,7 +72,8 @@ function generateRandomKeyCode(rawPrefix) {
 // 1. ENDPOINT PUBLIC CHO CLIENT APK: POST /api/key/verify
 // ============================================================================
 router.post("/key/verify", (req, res) => {
-  syncExpiredKeys();
+  const state = readDb();
+  syncExpiredKeys(state);
 
   const { key, deviceName, hwid, osVersion } = req.body || {};
   const cleanKey = String(key || "").trim().toUpperCase();
@@ -90,9 +85,9 @@ router.post("/key/verify", (req, res) => {
     });
   }
 
-  const record = db
-    .prepare("SELECT * FROM license_keys WHERE UPPER(key_code) = ?")
-    .get(cleanKey);
+  const record = state.license_keys.find(
+    (k) => String(k.key_code).toUpperCase() === cleanKey
+  );
 
   if (!record) {
     return res.status(404).json({
@@ -120,45 +115,36 @@ router.post("/key/verify", (req, res) => {
   const clientOs = String(osVersion || "26.6.1").trim();
   const now = new Date();
 
-  let expiresIso = record.expires_at;
-
-  // Nếu Key chưa kích hoạt (available) -> Kích hoạt lần đầu & khoá HWID
   if (record.status === "available") {
     const expDate = new Date(now.getTime() + record.duration_hours * 3600 * 1000);
-    expiresIso = expDate.toISOString();
+    record.status = "active";
+    record.hwid = clientHwid;
+    record.device_name = clientDevice;
+    record.os_version = clientOs;
+    record.activated_at = now.toISOString();
+    record.expires_at = expDate.toISOString();
 
-    db.prepare(`
-      UPDATE license_keys
-      SET status = 'active',
-          hwid = ?,
-          device_name = ?,
-          os_version = ?,
-          activated_at = ?,
-          expires_at = ?
-      WHERE id = ?
-    `).run(clientHwid, clientDevice, clientOs, now.toISOString(), expiresIso, record.id);
-
-    // Ghi log kích hoạt phục vụ Biểu đồ Dashboard
-    const todayStr = now.toISOString().slice(0, 10);
-    db.prepare(`
-      INSERT INTO activation_logs (key_code, device_name, hwid, activated_date, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(record.key_code, clientDevice, clientHwid, todayStr, now.toISOString());
+    state.activation_logs.push({
+      id: Date.now(),
+      key_code: record.key_code,
+      device_name: clientDevice,
+      hwid: clientHwid,
+      activated_date: now.toISOString().slice(0, 10),
+      created_at: now.toISOString(),
+    });
+    writeDb(state);
   } else if (record.status === "active") {
-    // Nếu Key đã gắn với HWID trước đó, kiểm tra trùng khớp HWID
     if (record.hwid && record.hwid !== clientHwid) {
       return res.status(403).json({
         success: false,
         message: `Key đã được gắn cố định với thiết bị (${record.device_name})! Liên hệ Admin để Reset HWID.`,
       });
     }
-    // Nếu vừa được Reset HWID (hwid rỗng), gắn lại thiết bị mới
     if (!record.hwid) {
-      db.prepare(`
-        UPDATE license_keys
-        SET hwid = ?, device_name = ?, os_version = ?
-        WHERE id = ?
-      `).run(clientHwid, clientDevice, clientOs, record.id);
+      record.hwid = clientHwid;
+      record.device_name = clientDevice;
+      record.os_version = clientOs;
+      writeDb(state);
     }
   }
 
@@ -173,7 +159,7 @@ router.post("/key/verify", (req, res) => {
     message: "Kích hoạt thành công!",
     data: {
       greeting: `Hi ${shortGreetingName}`,
-      expireAt: formatVNDateTime(expiresIso),
+      expireAt: formatVNDateTime(record.expires_at),
       deviceName: finalDevice,
       osVersion: finalOs,
       apiServer: "6.1.0",
@@ -185,41 +171,21 @@ router.post("/key/verify", (req, res) => {
 // 2. THỐNG KÊ DASHBOARD OVERVIEW: GET /api/stats
 // ============================================================================
 router.get("/stats", verifyToken, (req, res) => {
-  syncExpiredKeys();
+  const state = readDb();
+  syncExpiredKeys(state);
 
   const isSuper = req.user.role === "super_admin";
-  const filterSql = isSuper ? "" : "WHERE created_by = ?";
-  const params = isSuper ? [] : [req.user.username];
+  const keys = isSuper
+    ? state.license_keys
+    : state.license_keys.filter((k) => k.created_by === req.user.username);
 
-  const total = db
-    .prepare(`SELECT COUNT(*) AS count FROM license_keys ${filterSql}`)
-    .get(...params).count;
+  const total = keys.length;
+  const active = keys.filter((k) => k.status === "active").length;
+  const available = keys.filter((k) => k.status === "available").length;
+  const expiredOrBanned = keys.filter(
+    (k) => k.status === "expired" || k.status === "banned"
+  ).length;
 
-  const active = db
-    .prepare(
-      `SELECT COUNT(*) AS count FROM license_keys ${
-        isSuper ? "WHERE" : "WHERE created_by = ? AND"
-      } status = 'active'`
-    )
-    .get(...params).count;
-
-  const available = db
-    .prepare(
-      `SELECT COUNT(*) AS count FROM license_keys ${
-        isSuper ? "WHERE" : "WHERE created_by = ? AND"
-      } status = 'available'`
-    )
-    .get(...params).count;
-
-  const expiredOrBanned = db
-    .prepare(
-      `SELECT COUNT(*) AS count FROM license_keys ${
-        isSuper ? "WHERE" : "WHERE created_by = ? AND"
-      } status IN ('expired', 'banned')`
-    )
-    .get(...params).count;
-
-  // Biểu đồ kích hoạt 7 ngày gần nhất
   const chartDays = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(Date.now() - i * 86400 * 1000);
@@ -228,15 +194,11 @@ router.get("/stats", verifyToken, (req, res) => {
       d.getMonth() + 1
     ).padStart(2, "0")}`;
 
-    const countRow = db
-      .prepare("SELECT COUNT(*) AS count FROM activation_logs WHERE activated_date = ?")
-      .get(dateStr);
+    const count = state.activation_logs.filter(
+      (l) => l.activated_date === dateStr
+    ).length;
 
-    chartDays.push({
-      date: dateStr,
-      label,
-      count: countRow ? countRow.count : 0,
-    });
+    chartDays.push({ date: dateStr, label, count });
   }
 
   res.json({
@@ -256,34 +218,35 @@ router.get("/stats", verifyToken, (req, res) => {
 // 3. DANH SÁCH & BỘ LỌC KEY: GET /api/keys
 // ============================================================================
 router.get("/keys", verifyToken, (req, res) => {
-  syncExpiredKeys();
+  const state = readDb();
+  syncExpiredKeys(state);
 
   const { status = "all", search = "" } = req.query;
-  const conditions = [];
-  const params = [];
+  const q = String(search || "").trim().toLowerCase();
+
+  let list = state.license_keys.slice();
 
   if (req.user.role !== "super_admin") {
-    conditions.push("created_by = ?");
-    params.push(req.user.username);
+    list = list.filter((k) => k.created_by === req.user.username);
   }
 
   if (status && status !== "all") {
-    conditions.push("status = ?");
-    params.push(status);
+    list = list.filter((k) => k.status === status);
   }
 
-  if (search && String(search).trim()) {
-    const q = `%${String(search).trim()}%`;
-    conditions.push("(key_code LIKE ? OR note LIKE ? OR device_name LIKE ? OR hwid LIKE ?)");
-    params.push(q, q, q, q);
+  if (q) {
+    list = list.filter(
+      (k) =>
+        String(k.key_code || "").toLowerCase().includes(q) ||
+        String(k.note || "").toLowerCase().includes(q) ||
+        String(k.device_name || "").toLowerCase().includes(q) ||
+        String(k.hwid || "").toLowerCase().includes(q)
+    );
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-  const rows = db
-    .prepare(`SELECT * FROM license_keys ${whereClause} ORDER BY id DESC LIMIT 500`)
-    .all(...params);
+  list.sort((a, b) => b.id - a.id);
 
-  const formatted = rows.map((r) => ({
+  const formatted = list.map((r) => ({
     ...r,
     activated_at_vn: r.activated_at ? formatVNDateTime(r.activated_at) : "—",
     expires_at_vn: r.expires_at ? formatVNDateTime(r.expires_at) : "Chưa kích hoạt",
@@ -314,55 +277,53 @@ router.post("/keys/generate", verifyToken, (req, res) => {
     });
   }
 
+  const state = readDb();
   const count = Math.min(Math.max(parseInt(quantity, 10) || 1, 1), 100);
   const totalCost = durationConfig.creditCost * count;
 
-  // Nếu là Đại lý (Reseller), kiểm tra hạn mức Credit
+  const dbUser = state.users.find((u) => u.id === req.user.id);
   if (req.user.role !== "super_admin") {
-    if (req.user.credits < totalCost) {
+    if (!dbUser || dbUser.credits < totalCost) {
       return res.status(403).json({
         success: false,
-        message: `Số dư Credit không đủ! Cần ${totalCost} Credit nhưng bạn chỉ còn ${req.user.credits} Credit.`,
+        message: `Số dư Credit không đủ! Cần ${totalCost} Credit nhưng bạn chỉ còn ${
+          dbUser ? dbUser.credits : 0
+        } Credit.`,
       });
     }
-    db.prepare("UPDATE users SET credits = credits - ? WHERE id = ?").run(
-      totalCost,
-      req.user.id
-    );
+    dbUser.credits -= totalCost;
   }
 
   const createdKeys = [];
   const nowIso = new Date().toISOString();
-  const insertStmt = db.prepare(`
-    INSERT INTO license_keys (
-      key_code, prefix, duration_hours, duration_label, status, note, created_by, created_at
-    ) VALUES (?, ?, ?, ?, 'available', ?, ?, ?)
-  `);
+  let nextId =
+    state.license_keys.reduce((max, k) => Math.max(max, k.id || 0), 0) + 1;
 
-  const insertMany = db.transaction(() => {
-    for (let i = 0; i < count; i++) {
-      let code = generateRandomKeyCode(prefix);
-      while (db.prepare("SELECT id FROM license_keys WHERE key_code = ?").get(code)) {
-        code = generateRandomKeyCode(prefix);
-      }
-      insertStmt.run(
-        code,
-        String(prefix || "NGBAO-").toUpperCase(),
-        durationConfig.hours,
-        durationConfig.label,
-        String(note || "").trim(),
-        req.user.username,
-        nowIso
-      );
-      createdKeys.push(code);
+  for (let i = 0; i < count; i++) {
+    let code = generateRandomKeyCode(prefix);
+    while (state.license_keys.some((k) => k.key_code === code)) {
+      code = generateRandomKeyCode(prefix);
     }
-  });
+    state.license_keys.push({
+      id: nextId++,
+      key_code: code,
+      prefix: String(prefix || "NGBAO-").toUpperCase(),
+      duration_hours: durationConfig.hours,
+      duration_label: durationConfig.label,
+      status: "available",
+      hwid: "",
+      device_name: "",
+      os_version: "",
+      note: String(note || "").trim(),
+      created_by: req.user.username,
+      created_at: nowIso,
+      activated_at: "",
+      expires_at: "",
+    });
+    createdKeys.push(code);
+  }
 
-  insertMany();
-
-  const updatedUser = db
-    .prepare("SELECT credits FROM users WHERE id = ?")
-    .get(req.user.id);
+  writeDb(state);
 
   res.json({
     success: true,
@@ -370,17 +331,16 @@ router.post("/keys/generate", verifyToken, (req, res) => {
     keys: createdKeys,
     durationLabel: durationConfig.label,
     note: String(note || "").trim(),
-    remainingCredits: updatedUser ? updatedUser.credits : req.user.credits,
+    remainingCredits: dbUser ? dbUser.credits : req.user.credits,
   });
 });
 
 // ============================================================================
 // 5. CÁC HÀNH ĐỘNG NHANH TRÊN BẢNG QUẢN LÝ KEY
 // ============================================================================
-
-// Kiểm tra quyền sở hữu key (Super Admin hoặc chính đại lý tạo key đó)
-function getAuthorizedKey(req, res, keyId) {
-  const record = db.prepare("SELECT * FROM license_keys WHERE id = ?").get(keyId);
+function getAuthorizedKey(state, req, res, keyId) {
+  const idNum = parseInt(keyId, 10);
+  const record = state.license_keys.find((k) => k.id === idNum);
   if (!record) {
     res.status(404).json({ success: false, message: "Không tìm thấy Key này!" });
     return null;
@@ -395,16 +355,14 @@ function getAuthorizedKey(req, res, keyId) {
   return record;
 }
 
-// 🔄 Reset HWID (Cho phép đổi máy mới)
 router.post("/keys/:id/reset-hwid", verifyToken, (req, res) => {
-  const record = getAuthorizedKey(req, res, req.params.id);
+  const state = readDb();
+  const record = getAuthorizedKey(state, req, res, req.params.id);
   if (!record) return;
 
-  db.prepare(`
-    UPDATE license_keys
-    SET hwid = '', device_name = ''
-    WHERE id = ?
-  `).run(record.id);
+  record.hwid = "";
+  record.device_name = "";
+  writeDb(state);
 
   res.json({
     success: true,
@@ -412,51 +370,31 @@ router.post("/keys/:id/reset-hwid", verifyToken, (req, res) => {
   });
 });
 
-// ⏳ Gia hạn (Extend) thêm ngày/giờ sử dụng
 router.post("/keys/:id/extend", verifyToken, (req, res) => {
-  const record = getAuthorizedKey(req, res, req.params.id);
+  const state = readDb();
+  const record = getAuthorizedKey(state, req, res, req.params.id);
   if (!record) return;
 
   const addHours = parseInt(req.body.addHours, 10) || 24;
-  if (addHours <= 0) {
-    return res.status(400).json({
-      success: false,
-      message: "Số giờ gia hạn phải lớn hơn 0!",
-    });
-  }
-
-  let newExpiresAt = record.expires_at;
-  let newStatus = record.status;
-  const newDurationHours = record.duration_hours + addHours;
+  record.duration_hours += addHours;
 
   if (record.expires_at) {
     const baseTime =
       new Date(record.expires_at).getTime() > Date.now()
         ? new Date(record.expires_at).getTime()
         : Date.now();
-    newExpiresAt = new Date(baseTime + addHours * 3600 * 1000).toISOString();
+    record.expires_at = new Date(baseTime + addHours * 3600 * 1000).toISOString();
     if (record.status === "expired") {
-      newStatus = "active";
+      record.status = "active";
     }
   }
 
   const addDaysLabel =
     addHours >= 24 ? `+${Math.round(addHours / 24)} Ngày` : `+${addHours} Giờ`;
+  const baseLabel = String(record.duration_label).split(" (+")[0];
+  record.duration_label = `${baseLabel} (${addDaysLabel})`;
 
-  db.prepare(`
-    UPDATE license_keys
-    SET duration_hours = ?,
-        duration_label = ?,
-        expires_at = ?,
-        status = ?
-    WHERE id = ?
-  `).run(
-    newDurationHours,
-    `${record.duration_label} (${addDaysLabel})`,
-    newExpiresAt,
-    newStatus,
-    record.id
-  );
+  writeDb(state);
 
   res.json({
     success: true,
@@ -464,43 +402,36 @@ router.post("/keys/:id/extend", verifyToken, (req, res) => {
   });
 });
 
-// 🔒 Khóa / Mở khóa (Ban / Unban)
 router.post("/keys/:id/toggle-ban", verifyToken, (req, res) => {
-  const record = getAuthorizedKey(req, res, req.params.id);
+  const state = readDb();
+  const record = getAuthorizedKey(state, req, res, req.params.id);
   if (!record) return;
 
-  let nextStatus = "banned";
   if (record.status === "banned") {
-    if (!record.activated_at) {
-      nextStatus = "available";
-    } else if (record.expires_at && new Date(record.expires_at).getTime() < Date.now()) {
-      nextStatus = "expired";
-    } else {
-      nextStatus = "active";
-    }
+    record.status = record.activated_at ? "active" : "available";
+  } else {
+    record.status = "banned";
   }
 
-  db.prepare("UPDATE license_keys SET status = ? WHERE id = ?").run(
-    nextStatus,
-    record.id
-  );
+  writeDb(state);
 
   res.json({
     success: true,
     message:
-      nextStatus === "banned"
+      record.status === "banned"
         ? `Đã KHÓA (Ban) mã ${record.key_code}!`
         : `Đã MỞ KHÓA mã ${record.key_code}!`,
-    status: nextStatus,
+    status: record.status,
   });
 });
 
-// 🗑️ Xóa Key
 router.delete("/keys/:id", verifyToken, (req, res) => {
-  const record = getAuthorizedKey(req, res, req.params.id);
+  const state = readDb();
+  const record = getAuthorizedKey(state, req, res, req.params.id);
   if (!record) return;
 
-  db.prepare("DELETE FROM license_keys WHERE id = ?").run(record.id);
+  state.license_keys = state.license_keys.filter((k) => k.id !== record.id);
+  writeDb(state);
 
   res.json({
     success: true,
