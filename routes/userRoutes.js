@@ -1,13 +1,13 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const { readDb, writeDb } = require("../db/database");
+const { loadState, saveState } = require("../db/database");
 const { verifyToken, requireSuperAdmin } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// Danh sách Đại lý / Tài khoản (Chỉ Super Admin)
-router.get("/users", verifyToken, requireSuperAdmin, (req, res) => {
-  const state = readDb();
+// 11. GET /api/users
+router.get("/users", verifyToken, requireSuperAdmin, async (req, res) => {
+  const state = await loadState();
   const users = state.users.map((u) => ({
     id: u.id,
     username: u.username,
@@ -24,8 +24,8 @@ router.get("/users", verifyToken, requireSuperAdmin, (req, res) => {
   });
 });
 
-// Tạo tài khoản Đại lý / Cộng tác viên mới
-router.post("/users", verifyToken, requireSuperAdmin, (req, res) => {
+// POST /api/users
+router.post("/users", verifyToken, requireSuperAdmin, async (req, res) => {
   const { username, password, credits = 50, role = "reseller" } = req.body || {};
   const cleanUser = String(username || "").trim();
 
@@ -36,7 +36,7 @@ router.post("/users", verifyToken, requireSuperAdmin, (req, res) => {
     });
   }
 
-  const state = readDb();
+  const state = await loadState();
   const existing = state.users.find(
     (u) => u.username.toLowerCase() === cleanUser.toLowerCase()
   );
@@ -48,13 +48,12 @@ router.post("/users", verifyToken, requireSuperAdmin, (req, res) => {
   }
 
   const hash = bcrypt.hashSync(String(password), 10);
-  const validRole = role === "super_admin" ? "super_admin" : "reseller";
+  const validRole =
+    role === "super_admin" || role === "admin" ? "super_admin" : "reseller";
   const initialCredits = Math.max(parseInt(credits, 10) || 0, 0);
-  const nextId =
-    state.users.reduce((max, u) => Math.max(max, u.id || 0), 0) + 1;
 
   state.users.push({
-    id: nextId,
+    id: Date.now(),
     username: cleanUser,
     password_hash: hash,
     role: validRole,
@@ -62,7 +61,7 @@ router.post("/users", verifyToken, requireSuperAdmin, (req, res) => {
     is_active: 1,
     created_at: new Date().toISOString(),
   });
-  writeDb(state);
+  await saveState(state);
 
   res.json({
     success: true,
@@ -70,14 +69,15 @@ router.post("/users", verifyToken, requireSuperAdmin, (req, res) => {
   });
 });
 
-// Cộng / Cập nhật số dư Credit cho Đại lý
-router.post("/users/:id/credits", verifyToken, requireSuperAdmin, (req, res) => {
+// POST /api/users/:id/credits
+router.post("/users/:id/credits", verifyToken, requireSuperAdmin, async (req, res) => {
   const { addCredits = 0 } = req.body || {};
   const delta = parseInt(addCredits, 10) || 0;
-  const idNum = parseInt(req.params.id, 10);
 
-  const state = readDb();
-  const target = state.users.find((u) => u.id === idNum);
+  const state = await loadState();
+  const target = state.users.find(
+    (u) => String(u.id) === String(req.params.id) || String(u._id) === String(req.params.id)
+  );
 
   if (!target) {
     return res.status(404).json({
@@ -87,7 +87,7 @@ router.post("/users/:id/credits", verifyToken, requireSuperAdmin, (req, res) => 
   }
 
   target.credits = Math.max(target.credits + delta, 0);
-  writeDb(state);
+  await saveState(state);
 
   res.json({
     success: true,
@@ -96,11 +96,12 @@ router.post("/users/:id/credits", verifyToken, requireSuperAdmin, (req, res) => 
   });
 });
 
-// Khóa / Mở khóa tài khoản Đại lý
-router.post("/users/:id/toggle-active", verifyToken, requireSuperAdmin, (req, res) => {
-  const idNum = parseInt(req.params.id, 10);
-  const state = readDb();
-  const target = state.users.find((u) => u.id === idNum);
+// POST /api/users/:id/toggle-active
+router.post("/users/:id/toggle-active", verifyToken, requireSuperAdmin, async (req, res) => {
+  const state = await loadState();
+  const target = state.users.find(
+    (u) => String(u.id) === String(req.params.id) || String(u._id) === String(req.params.id)
+  );
 
   if (!target) {
     return res.status(404).json({
@@ -117,7 +118,7 @@ router.post("/users/:id/toggle-active", verifyToken, requireSuperAdmin, (req, re
   }
 
   target.is_active = target.is_active ? 0 : 1;
-  writeDb(state);
+  await saveState(state);
 
   res.json({
     success: true,
