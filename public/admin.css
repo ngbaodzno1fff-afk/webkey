@@ -1,0 +1,148 @@
+/* ================= DARK MODE GAMING THEME (ĐEN - ĐỎ/CAM NEON) ================= */
+.admin-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(110px);
+  opacity: 0.45;
+}
+
+.orb-top-left {
+  width: 480px;
+  height: 480px;
+  background: radial-gradient(circle, #e11d48 0%, #7f1d1d 60%, transparent 100%);
+  top: -120px;
+  left: -120px;
+}
+
+.orb-bottom-right {
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(circle, #ea580c 0%, #881337 65%, transparent 100%);
+  bottom: -160px;
+  right: -120px;
+}
+
+.admin-grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.gaming-card {
+  background: rgba(18, 10, 14, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+}
+
+.gaming-sidebar {
+  background: rgba(13, 7, 10, 0.9);
+  backdrop-filter: blur(24px);
+}
+
+.gaming-input {
+  background: rgba(9, 5, 7, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f4f4f5;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gaming-input:focus {
+  border-color: #f43f5e;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.2);
+}
+
+.neon-btn {
+  background: linear-gradient(90deg, #e11d48 0%, #f97316 100%);
+  color: #ffffff;
+  box-shadow: 0 10px 25px rgba(225, 29, 72, 0.38);
+}
+
+.neon-btn:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 12px 30px rgba(249, 115, 22, 0.48);
+}
+
+.neon-btn:active {
+  transform: scale(0.985);
+}
+
+.nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #a1a1aa;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.nav-tab:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-tab.active {
+  color: #ffffff;
+  background: linear-gradient(90deg, rgba(225, 29, 72, 0.28) 0%, rgba(249, 115, 22, 0.12) 100%);
+  border-color: rgba(244, 63, 94, 0.45);
+  box-shadow: 0 6px 20px rgba(225, 29, 72, 0.2);
+}
+
+.stat-card {
+  background: rgba(18, 10, 14, 0.82);
+  backdrop-filter: blur(16px);
+  border-width: 1px;
+  border-radius: 22px;
+  padding: 18px 20px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.prefix-chip,
+.qty-chip,
+.status-filter-btn {
+  padding: 6px 13px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d4d4d8;
+  transition: all 0.15s ease;
+}
+
+.prefix-chip:hover,
+.qty-chip:hover,
+.status-filter-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.prefix-chip.active,
+.qty-chip.active,
+.status-filter-btn.active {
+  background: rgba(225, 29, 72, 0.25);
+  border-color: #f43f5e;
+  color: #fda4af;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(9, 5, 7, 0.6);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(244, 63, 94, 0.35);
+  border-radius: 999px;
+}
