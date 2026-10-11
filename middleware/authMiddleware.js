@@ -1,9 +1,9 @@
 const jwt = require("jsonwebtoken");
-const { readDb } = require("../db/database");
+const { loadState } = require("../db/database");
 
 const JWT_SECRET = process.env.JWT_SECRET || "FF_SERVER_KEY_SUPER_SECRET_2026";
 
-function verifyToken(req, res, next) {
+async function verifyToken(req, res, next) {
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
@@ -16,8 +16,12 @@ function verifyToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const state = readDb();
-    const user = state.users.find((u) => u.id === decoded.id);
+    const state = await loadState();
+    const user = state.users.find(
+      (u) =>
+        String(u.id) === String(decoded.id) ||
+        u.username.toLowerCase() === String(decoded.username || "").toLowerCase()
+    );
 
     if (!user || !user.is_active) {
       return res.status(403).json({
@@ -29,7 +33,7 @@ function verifyToken(req, res, next) {
     req.user = {
       id: user.id,
       username: user.username,
-      role: user.role,
+      role: user.role === "admin" ? "super_admin" : user.role,
       credits: user.credits,
       is_active: user.is_active,
     };
@@ -43,7 +47,7 @@ function verifyToken(req, res, next) {
 }
 
 function requireSuperAdmin(req, res, next) {
-  if (!req.user || req.user.role !== "super_admin") {
+  if (!req.user || (req.user.role !== "super_admin" && req.user.role !== "admin")) {
     return res.status(403).json({
       success: false,
       message: "Chỉ Super Admin mới có quyền thực hiện thao tác này!",
