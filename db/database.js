@@ -2,8 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const bcrypt = require("bcryptjs");
+const mongoose = require("mongoose");
+const UserModel = require("../models/User");
+const KeyModel = require("../models/Key");
 
-// Trên Vercel Serverless, chỉ thư mục /tmp mới cho phép ghi file (Writeable)
 const isVercel = Boolean(process.env.VERCEL || process.env.NOW_REGION);
 const dataDir = isVercel
   ? path.join(os.tmpdir(), "ff_key_data")
@@ -15,6 +17,12 @@ if (!fs.existsSync(dataDir)) {
 
 const dbFile = path.join(dataDir, "ff_key_database.json");
 
+// Cache kết nối MongoDB Atlas cho Vercel Serverless
+let cachedMongo = global._mongooseCache;
+if (!cachedMongo) {
+  cachedMongo = global._mongooseCache = { conn: null, promise: null, seeded: false };
+}
+
 function createInitialData() {
   const now = new Date();
   const nowIso = now.toISOString();
@@ -22,7 +30,6 @@ function createInitialData() {
   const exp7d = new Date(now.getTime() + 7 * 86400 * 1000).toISOString();
   const expPast = new Date(now.getTime() - 2 * 86400 * 1000).toISOString();
 
-  // Tạo dữ liệu biểu đồ 7 ngày gần nhất
   const activation_logs = [];
   const sampleCounts = [3, 5, 4, 8, 6, 11, 7];
   let logId = 1;
@@ -69,14 +76,14 @@ function createInitialData() {
         prefix: "NGBAO-",
         duration_hours: 720,
         duration_label: "30 Ngày",
-        status: "active",
-        hwid: "HWID-IPHONE12PRO-9981",
-        device_name: "iPhone 12 Pro",
-        os_version: "26.6.1",
-        note: "Khách VIP Nguyễn Bảo",
+        status: "available",
+        hwid: "",
+        device_name: "",
+        os_version: "Android 14",
+        note: "Key VIP mặc định test ngay",
         created_by: "admin",
         created_at: nowIso,
-        activated_at: nowIso,
+        activated_at: "",
         expires_at: exp30d,
       },
       {
@@ -88,7 +95,7 @@ function createInitialData() {
         status: "available",
         hwid: "",
         device_name: "",
-        os_version: "",
+        os_version: "Android 14",
         note: "Key test sẵn sàng nhập",
         created_by: "admin",
         created_at: nowIso,
@@ -104,7 +111,7 @@ function createInitialData() {
         status: "available",
         hwid: "",
         device_name: "",
-        os_version: "",
+        os_version: "Android 14",
         note: "Key dùng thử 1 ngày",
         created_by: "reseller",
         created_at: nowIso,
@@ -148,21 +155,50 @@ function createInitialData() {
   };
 }
 
-function readDb() {
+async function connectMongoIfConfigured() {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) return false;
+
+  try {
+    if (!cachedMongo.conn) {
+      if (!cachedMongo.promise) {
+        cachedMongo.promise = mongoose
+          .connect(uri, { bufferCommands: false, serverSelectionTimeoutMS: 5000 })
+          .then((m) => m);
+      }
+      cachedMongo.conn = await cachedMongo.promise;
+    }
+
+    if (!cachedMongo.seeded) {
+      const userCount = await UserModel.countDocuments();
+      if (userCount === 0) {
+        const seed = createInitialData();
+        await UserModel.insertMany(seed.users.map(({ id, ...rest }) => rest));
+        await KeyModel.insertMany(seed.license_keys.map(({ id, ...rest }) => rest));
+      }
+      cachedMongo.seeded = true;
+    }
+    return true;
+  } catch (err) {
+    console.error("MongoDB connection fallback to /tmp JSON:", err.message);
+    return false;
+  }
+}
+
+function readLocalState() {
   try {
     if (!fs.existsSync(dbFile)) {
       const seed = createInitialData();
       fs.writeFileSync(dbFile, JSON.stringify(seed, null, 2), "utf8");
       return seed;
     }
-    const raw = fs.readFileSync(dbFile, "utf8");
-    return JSON.parse(raw);
-  } catch (err) {
+    return JSON.parse(fs.readFileSync(dbFile, "utf8"));
+  } catch {
     return createInitialData();
   }
 }
 
-function writeDb(state) {
+function writeLocalState(state) {
   try {
     fs.writeFileSync(dbFile, JSON.stringify(state, null, 2), "utf8");
   } catch (err) {
@@ -170,7 +206,115 @@ function writeDb(state) {
   }
 }
 
+/**
+ * Đọc toàn bộ state từ MongoDB Atlas (nếu có MONGODB_URI) hoặc từ /tmp JSON
+ */
+async function loadState() {
+  const isMongo = await connectMongoIfConfigured();
+  if (isMongo) {
+    const usersDocs = await UserModel.find().lean();
+    const keysDocs = await KeyModel.find().lean();
+    const localFallback = readLocalState();
+
+    return {
+      isMongo: true,
+      users: usersDocs.map((u, idx) => ({
+        ...u,
+        id: String(u._id),
+        numericId: idx + 1,
+      })),
+      license_keys: keysDocs.map((k, idx) => ({
+        ...k,
+        id: String(k._id),
+        numericId: idx + 1,
+      })),
+      activation_logs: localFallback.activation_logs || [],
+    };
+  }
+
+  return {
+    isMongo: false,
+    ...readLocalState(),
+  };
+}
+
+/**
+ * Lưu thay đổi vào MongoDB Atlas hoặc /tmp JSON
+ */
+async function saveState(state) {
+  const isMongo = await connectMongoIfConfigured();
+  if (isMongo) {
+    // Đồng bộ Users
+    for (const u of state.users) {
+      if (u._id) {
+        await UserModel.updateOne(
+          { _id: u._id },
+          {
+            $set: {
+              username: u.username,
+              password_hash: u.password_hash,
+              role: u.role,
+              credits: u.credits,
+              is_active: u.is_active,
+            },
+          }
+        );
+      } else {
+        await UserModel.findOneAndUpdate(
+          { username: u.username },
+          {
+            $setOnInsert: {
+              username: u.username,
+              password_hash: u.password_hash,
+              role: u.role,
+              credits: u.credits,
+              is_active: u.is_active,
+              created_at: u.created_at || new Date().toISOString(),
+            },
+          },
+          { upsert: true }
+        );
+      }
+    }
+
+    // Đồng bộ Keys
+    const currentKeyCodes = state.license_keys.map((k) => k.key_code);
+    await KeyModel.deleteMany({ key_code: { $nin: currentKeyCodes } });
+
+    for (const k of state.license_keys) {
+      await KeyModel.findOneAndUpdate(
+        { key_code: k.key_code },
+        {
+          $set: {
+            prefix: k.prefix,
+            duration_hours: k.duration_hours,
+            duration_label: k.duration_label,
+            status: k.status,
+            hwid: k.hwid || "",
+            device_name: k.device_name || "",
+            os_version: k.os_version || "Android 14",
+            note: k.note || "",
+            created_by: k.created_by || "admin",
+            created_at: k.created_at || new Date().toISOString(),
+            activated_at: k.activated_at || "",
+            expires_at: k.expires_at || "",
+          },
+        },
+        { upsert: true }
+      );
+    }
+  }
+
+  writeLocalState({
+    users: state.users,
+    license_keys: state.license_keys,
+    activation_logs: state.activation_logs || [],
+  });
+}
+
 module.exports = {
-  readDb,
-  writeDb,
+  readDb: readLocalState,
+  writeDb: writeLocalState,
+  loadState,
+  saveState,
 };
