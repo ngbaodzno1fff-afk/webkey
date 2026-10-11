@@ -155,16 +155,23 @@ function createInitialData() {
   };
 }
 
+const DEFAULT_MONGODB_URI =
+  "mongodb+srv://ngbaodzno1fff_db_user:Pi7oxNJwYgFj2pEg@cluster0.jecsfql.mongodb.net/ffkeydb?retryWrites=true&w=majority&appName=Cluster0";
+
 async function connectMongoIfConfigured() {
-  const uri = process.env.MONGODB_URI;
+  const uri = process.env.MONGODB_URI || DEFAULT_MONGODB_URI;
   if (!uri) return false;
 
   try {
     if (!cachedMongo.conn) {
       if (!cachedMongo.promise) {
         cachedMongo.promise = mongoose
-          .connect(uri, { bufferCommands: false, serverSelectionTimeoutMS: 5000 })
-          .then((m) => m);
+          .connect(uri, { bufferCommands: false, serverSelectionTimeoutMS: 4500 })
+          .then((m) => m)
+          .catch((err) => {
+            cachedMongo.promise = null;
+            throw err;
+          });
       }
       cachedMongo.conn = await cachedMongo.promise;
     }
