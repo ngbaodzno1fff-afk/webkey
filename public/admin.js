@@ -490,7 +490,7 @@ async function loadKeysTable() {
             <div class="inline-flex items-center gap-1.5">
               <button
                 type="button"
-                onclick="handleResetHwid(${k.id})"
+                onclick="handleResetHwid('${k.id}')"
                 title="Reset HWID (Cho phép đổi máy)"
                 class="px-2.5 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 font-semibold transition"
               >
@@ -498,7 +498,7 @@ async function loadKeysTable() {
               </button>
               <button
                 type="button"
-                onclick="openExtendModal(${k.id}, '${k.key_code}')"
+                onclick="openExtendModal('${k.id}', '${k.key_code}')"
                 title="Gia hạn thêm ngày sử dụng"
                 class="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 font-semibold transition"
               >
@@ -506,7 +506,7 @@ async function loadKeysTable() {
               </button>
               <button
                 type="button"
-                onclick="handleToggleBan(${k.id})"
+                onclick="handleToggleBan('${k.id}')"
                 title="${isBanned ? "Mở khóa Key" : "Khóa Key tạm thời"}"
                 class="px-2.5 py-1.5 rounded-lg ${
                   isBanned
@@ -518,7 +518,7 @@ async function loadKeysTable() {
               </button>
               <button
                 type="button"
-                onclick="handleDeleteKey(${k.id}, '${k.key_code}')"
+                onclick="handleDeleteKey('${k.id}', '${k.key_code}')"
                 title="Xóa Key"
                 class="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/35 border border-rose-500/30 text-rose-300 font-semibold transition"
               >
@@ -656,14 +656,14 @@ async function loadResellersTable() {
                 <div class="inline-flex gap-1.5">
                   <button
                     type="button"
-                    onclick="handleAddCredit(${u.id}, 100)"
+                    onclick="handleAddCredit('${u.id}', 100)"
                     class="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 font-semibold"
                   >
                     +100 Credit
                   </button>
                   <button
                     type="button"
-                    onclick="handleToggleUser(${u.id})"
+                    onclick="handleToggleUser('${u.id}')"
                     class="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-white/10 text-zinc-200 font-semibold"
                   >
                     ${u.is_active ? "Khóa" : "Mở khóa"}
