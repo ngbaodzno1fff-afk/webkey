@@ -3,38 +3,33 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
-const db = require("../db/database");
+const { readDb } = require("../db/database");
 const { JWT_SECRET, verifyToken } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// Lưu trữ Captcha tạm thời trong bộ nhớ (tự hết hạn sau 5 phút)
-const captchaStore = new Map();
-
 const loginLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 phút
-  max: 15, // Tối đa 15 lần thử đăng nhập trong 5 phút
+  windowMs: 5 * 60 * 1000,
+  max: 25,
   message: {
     success: false,
     message: "Quá nhiều lần đăng nhập sai! Vui lòng thử lại sau 5 phút.",
   },
 });
 
-// Tạo mã Captcha chống brute-force
+function signCaptchaAnswer(answer) {
+  return crypto
+    .createHmac("sha256", JWT_SECRET)
+    .update(String(answer).trim())
+    .digest("hex");
+}
+
+// Tạo mã Captcha Stateless (tương thích 100% Vercel Serverless)
 router.get("/captcha", (req, res) => {
   const num1 = Math.floor(Math.random() * 9) + 1;
   const num2 = Math.floor(Math.random() * 9) + 1;
-  const captchaId = crypto.randomBytes(8).toString("hex");
-
-  captchaStore.set(captchaId, {
-    answer: String(num1 + num2),
-    expires: Date.now() + 5 * 60 * 1000,
-  });
-
-  // Dọn dẹp captcha hết hạn
-  for (const [k, v] of captchaStore.entries()) {
-    if (v.expires < Date.now()) captchaStore.delete(k);
-  }
+  const answer = String(num1 + num2);
+  const captchaId = signCaptchaAnswer(answer);
 
   res.json({
     success: true,
@@ -54,11 +49,10 @@ router.post("/login", loginLimiter, (req, res) => {
     });
   }
 
-  // Kiểm tra Captcha nếu được gửi lên
+  // Kiểm tra Captcha Stateless HMAC
   if (captchaId) {
-    const record = captchaStore.get(captchaId);
-    captchaStore.delete(captchaId);
-    if (!record || record.expires < Date.now() || String(captchaAnswer).trim() !== record.answer) {
+    const expectedSig = signCaptchaAnswer(captchaAnswer || "");
+    if (captchaId !== expectedSig) {
       return res.status(400).json({
         success: false,
         message: "Mã bảo vệ (Captcha) không chính xác!",
@@ -66,9 +60,9 @@ router.post("/login", loginLimiter, (req, res) => {
     }
   }
 
-  const user = db
-    .prepare("SELECT * FROM users WHERE username = ?")
-    .get(String(username).trim());
+  const state = readDb();
+  const cleanUser = String(username).trim().toLowerCase();
+  const user = state.users.find((u) => u.username.toLowerCase() === cleanUser);
 
   if (!user || !bcrypt.compareSync(String(password), user.password_hash)) {
     return res.status(401).json({
