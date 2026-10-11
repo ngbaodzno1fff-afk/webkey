@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const db = require("../db/database");
+const { readDb } = require("../db/database");
 
 const JWT_SECRET = process.env.JWT_SECRET || "FF_SERVER_KEY_SUPER_SECRET_2026";
 
@@ -16,9 +16,8 @@ function verifyToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = db
-      .prepare("SELECT id, username, role, credits, is_active FROM users WHERE id = ?")
-      .get(decoded.id);
+    const state = readDb();
+    const user = state.users.find((u) => u.id === decoded.id);
 
     if (!user || !user.is_active) {
       return res.status(403).json({
@@ -27,7 +26,13 @@ function verifyToken(req, res, next) {
       });
     }
 
-    req.user = user;
+    req.user = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      credits: user.credits,
+      is_active: user.is_active,
+    };
     next();
   } catch (err) {
     return res.status(401).json({
