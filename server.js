@@ -26,8 +26,13 @@ app.use("/api", keyRoutes);
 app.use("/api", userRoutes);
 
 // Phục vụ các file giao diện Web Admin
-app.get(["/", "/admin", "/admin.html"], (req, res) => {
+app.get(["/admin", "/admin.html"], (req, res) => {
   res.sendFile(path.join(publicDir, "admin.html"));
+});
+
+// Phục vụ giao diện ứng dụng APK Overlay trên Web
+app.get(["/", "/app", "/app.html", "/overlay"], (req, res) => {
+  res.sendFile(path.join(publicDir, "app.html"));
 });
 
 app.get("/admin.css", (req, res) => {
