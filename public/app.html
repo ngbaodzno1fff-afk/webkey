@@ -3,370 +3,208 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>FF Server Key & Floating Overlay Menu</title>
+  <title>NGBAO FF VIP Overlay</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Nền Đỏ - Đen Gaussian Blur -->
+
+  <!-- Nền Đen Huyền Bí Chuẩn Esports (Pure Black & Subtle Radial Glow) -->
   <div class="bg-canvas" aria-hidden="true">
-    <div class="glow-orb orb-1"></div>
-    <div class="glow-orb orb-2"></div>
-    <div class="glow-orb orb-3"></div>
-    <div class="glow-orb orb-4"></div>
-    <div class="bg-noise"></div>
+    <div class="radial-ambient-glow"></div>
   </div>
 
-  <!-- Khung màn hình dọc 9:16 (Tự bung full màn hình trên điện thoại) -->
-  <main class="phone-viewport" id="appViewport">
-
-    <!-- Thông báo góc trên bên phải (Hiện khi nhập key thành công) -->
-    <div class="bg-toast" id="bgToast" role="status" aria-live="polite">
-      <div class="toast-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="20 6 9 17 4 12"></polyline>
-        </svg>
-      </div>
-      <div class="toast-text">
-        <span class="toast-title">Đang tải dưới nền</span>
-        <span class="toast-sub">Đã Tải Thành Công</span>
-      </div>
+  <!-- Thông báo Toast góc trên bên phải -->
+  <div class="bg-toast" id="bgToast" role="status" aria-live="polite">
+    <div class="toast-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
     </div>
-
-    <!-- ================= MÀN HÌNH 1: NHẬP KEY ================= -->
-    <section class="screen active" id="screenKeyInput">
-      <div class="center-stack">
-        <!-- Avatar bo góc lấy từ ảnh 1 -->
-        <div class="avatar-box">
-          <img src="avatar.jpg" alt="Avatar" class="avatar-img" />
-        </div>
-
-        <!-- Khu vực nhập Key bên dưới Avatar -->
-        <form class="key-form" id="keyForm" autocomplete="off">
-          <div class="input-wrapper" id="inputWrapper">
-            <input
-              type="text"
-              id="keyInput"
-              class="key-input"
-              placeholder="Nhập Key tại đây..."
-              spellcheck="false"
-              autocomplete="off"
-            />
-            <button type="button" class="paste-btn" id="pasteBtn">Paste</button>
-          </div>
-
-          <p class="error-msg" id="errorMsg"></p>
-
-          <button type="submit" class="login-btn" id="loginBtn">
-            <span class="btn-text" id="loginBtnText">Đăng Nhập / Kích Hoạt</span>
-            <span class="btn-loader" id="loginLoader" hidden></span>
-          </button>
-
-          <a href="#get-key" class="get-key-link" id="getKeyLink">Get Key</a>
-        </form>
-      </div>
-    </section>
-
-    <!-- ================= MÀN HÌNH 2: SAU KHI NHẬP KEY XONG ================= -->
-    <section class="screen" id="screenKeySuccess">
-      <div class="center-stack success-stack">
-        <!-- Avatar bo góc lấy từ ảnh 1 -->
-        <div class="avatar-box avatar-success">
-          <img src="avatar.jpg" alt="Avatar" class="avatar-img" />
-        </div>
-
-        <!-- Dấu tích xanh -->
-        <div class="check-icon-wrap">
-          <svg class="big-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-        </div>
-
-        <!-- Lời chào -->
-        <h1 class="greeting-text" id="greetingText">Hi iPhone</h1>
-
-        <!-- Thông tin Server Key trả về -->
-        <div class="info-block">
-          <p id="expireText">Hết hạn vào: 12-10-2026 2:37:17 CH</p>
-          <p id="deviceText">Thiết bị: iPhone 12 Pro | Phiên bản: 26.6.1</p>
-          <p id="apiServerText">APIServer: 6.1.0</p>
-        </div>
-      </div>
-
-      <!-- Bấm vào để sang Trang chính -->
-      <button type="button" class="tap-close-btn" id="tapCloseBtn">
-        Tap to close (Vào Trang Chính)
-      </button>
-    </section>
-
-    <!-- ================= MÀN HÌNH 3: TRANG CHÍNH (MAIN DASHBOARD) ================= -->
-    <section class="screen" id="screenMainDashboard">
-      <div class="main-screen-container">
-        <!-- Header thông tin người dùng -->
-        <header class="main-header">
-          <div class="main-user-info">
-            <div class="avatar-thumb">
-              <img src="avatar.jpg" alt="User Avatar" />
-            </div>
-            <div class="user-meta">
-              <div class="user-name" id="mainUserName">Hi iPhone 12 Pro</div>
-              <div class="user-badge">
-                <span class="badge-dot"></span>
-                <span>VIP ACTIVE</span>
-              </div>
-            </div>
-          </div>
-          <div class="server-status-pill">
-            <span class="pulse-green"></span>
-            <span>SERVER 6.1.0</span>
-          </div>
-        </header>
-
-        <!-- Trung tâm: Nút Kích Hoạt Menu Nổi (Overlay) -->
-        <div class="hero-overlay-center">
-          <div class="hero-pulse-ring"></div>
-          <button type="button" class="btn-activate-overlay" id="btnActivateOverlay">
-            <div class="overlay-btn-avatar">
-              <img src="avatar.jpg" alt="Overlay Icon" />
-            </div>
-            <span class="overlay-btn-title">KÍCH HOẠT OVERLAY</span>
-            <span class="overlay-btn-sub">Bật Menu Nổi Trên Game</span>
-          </button>
-        </div>
-
-        <!-- Trạng thái và các thẻ điều khiển -->
-        <div class="dashboard-cards">
-          <div class="dash-card">
-            <div class="dash-card-icon">⚡</div>
-            <div class="dash-card-info">
-              <div class="dash-card-title">Trạng Thái Overlay</div>
-              <div class="dash-card-desc" id="overlayStatusDesc">Chưa bật (Bấm nút giữa để mở)</div>
-            </div>
-            <div class="dash-status-dot" id="overlayStatusDot"></div>
-          </div>
-
-          <div class="dash-card">
-            <div class="dash-card-icon">🛡️</div>
-            <div class="dash-card-info">
-              <div class="dash-card-title">Bản Quyền Key VIP</div>
-              <div class="dash-card-desc" id="dashKeyExpire">Hạn dùng: Đang kết nối Server</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Cặp nút Khởi Chạy Nhanh Free Fire & Free Fire MAX -->
-        <div class="game-launch-section">
-          <div class="launch-section-title">KHỞI CHẠY GAME TRỰC TIẾP</div>
-          <div class="game-launch-grid">
-            <button type="button" class="btn-game-launch ff-normal" id="btnMainLaunchFF">
-              <div class="game-launch-badge">FF GARENA</div>
-              <div class="game-launch-name">Vào Free Fire Thường</div>
-              <div class="game-launch-sub">com.dts.freefireth</div>
-            </button>
-            <button type="button" class="btn-game-launch ff-max" id="btnMainLaunchFFMax">
-              <div class="game-launch-badge">MAX HD</div>
-              <div class="game-launch-name">Vào Free Fire MAX</div>
-              <div class="game-launch-sub">com.dts.freefiremax</div>
-            </button>
-          </div>
-        </div>
-
-        <!-- Nút phụ điều hướng -->
-        <div class="dashboard-footer-actions">
-          <button type="button" class="btn-sub-action" id="btnOpenFloatingDirect">
-            🎯 Xem Thử Bảng Chức Năng Nổi
-          </button>
-          <button type="button" class="btn-sub-link" id="btnRecheckKey">
-            🔄 Đổi Key Khác
-          </button>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- ================= HỘP THOẠI XIN QUYỀN OVERLAY (ANDROID PERMISSION MODAL) ================= -->
-  <div class="overlay-permission-modal" id="overlayPermModal" aria-hidden="true">
-    <div class="perm-card">
-      <div class="perm-icon-wrap">
-        <div class="perm-avatar-ring">
-          <img src="avatar.jpg" alt="App Icon" />
-        </div>
-      </div>
-      <h3 class="perm-title">Cấp Quyền Hiển Thị Trên Nền</h3>
-      <p class="perm-desc">
-        Để hiển thị <strong>Cục tròn nổi</strong>, <strong>Tâm ảo</strong> và <strong>Vòng FOV</strong> trực tiếp đè lên màn hình khi bạn đang chơi game, ứng dụng cần bạn cho phép quyền <em>"Xuất hiện trên cùng" (Display over other apps)</em>.
-      </p>
-      <div class="perm-actions">
-        <button type="button" class="btn-perm-deny" id="btnPermDeny">Để sau</button>
-        <button type="button" class="btn-perm-allow" id="btnPermAllow">Cho phép & Bật</button>
-      </div>
+    <div class="toast-text">
+      <span class="toast-title" id="toastTitle">Đang chạy dưới nền</span>
+      <span class="toast-sub" id="toastSub">Holo HUD Active</span>
     </div>
   </div>
 
-  <!-- ================= CỤC TRÒN NỔI & BẢNG CHỨC NĂNG (FLOATING WIDGET) ================= -->
-  <div class="floating-container" id="floatingContainer" hidden>
+  <!-- Nút quản lý Key bản quyền góc trên bên trái -->
+  <header class="top-nav-bar">
+    <button type="button" class="btn-key-status" id="btnOpenKeyModal" title="Xem/Đổi License Key">
+      <span class="key-status-dot"></span>
+      <span class="key-status-text" id="topKeyStatusText">KEY VIP: ACTIVE</span>
+    </button>
+    <div class="server-badge">SERVER 6.1.0</div>
+  </header>
 
-    <!-- Cục tròn nổi (Floating Circle Ball) có thể kéo thả -->
-    <div class="floating-circle" id="floatingBall" title="Bấm để mở Menu Chức Năng (Giữ để kéo)">
-      <div class="floating-circle-pulse"></div>
-      <img src="avatar.jpg" alt="Floating Icon" class="floating-ball-img" />
-      <span class="floating-badge">VIP</span>
+  <!-- ================= LỚP HUD Ở TRUNG TÂM (HOLO HUD, TÂM ẢO & VÒNG FOV) ================= -->
+  <div class="holo-hud-viewport" id="holoHudViewport">
+    
+    <!-- Tiêu đề Holo HUD ở đỉnh vòng tròn -->
+    <div class="holo-hud-label" id="holoHudLabel">Holo HUD</div>
+
+    <!-- Nhãn chữ "Tâm ảo" nằm bên trái tâm ngắm -->
+    <div class="hud-label-tam-ao" id="hudLabelTamAo">Tâm ảo</div>
+
+    <!-- Tâm Ngắm Chữ Thập Neon Đỏ (Tâm ảo) -->
+    <div class="hud-reticle-crosshair" id="hudCrosshair">
+      <div class="reticle-arm-h"></div>
+      <div class="reticle-arm-v"></div>
+      <div class="reticle-dot"></div>
     </div>
 
-    <!-- Bảng chức năng nổi (Floating Menu Panel) bung ra khi bấm vào cục tròn -->
-    <aside class="floating-menu-panel" id="floatingMenuPanel" aria-hidden="true">
-      <!-- Header Menu nổi -->
-      <div class="floating-panel-header">
-        <div class="panel-brand">
-          <img src="avatar.jpg" alt="Icon" class="panel-brand-img" />
-          <div>
-            <div class="panel-title">VIP PANEL</div>
-            <div class="panel-version">Free Fire Active • 6.1.0</div>
-          </div>
-        </div>
-        <button type="button" class="btn-panel-minimize" id="btnMinimizePanel" title="Thu nhỏ về cục tròn">✕</button>
+    <!-- Nhãn chữ "Vòng FOV" nằm góc dưới bên trái vòng tròn -->
+    <div class="hud-label-vong-fov" id="hudLabelVongFov">Vòng FOV</div>
+
+    <!-- Vòng tròn ngắm FOV căn giữa màn hình (kéo chỉnh to/nhỏ bằng thanh trượt) -->
+    <div class="hud-fov-circle-ring" id="hudFovCircle"></div>
+
+  </div>
+
+  <!-- ================= BẢNG ĐIỀU KHIỂN VIP PANEL (KHỚP 100% DESIGN MOCKUP) ================= -->
+  <div class="vip-panel-wrapper" id="vipPanelWrapper">
+
+    <!-- Avatar tròn phát sáng neon đỏ nằm góc trên bên phải VIP Panel -->
+    <div class="avatar-badge-wrap" id="floatingBall" title="Chạm để Thu nhỏ / Mở rộng VIP PANEL">
+      <div class="avatar-neon-ring"></div>
+      <img src="avatar.jpg" alt="Avatar NGBAO FF" class="avatar-badge-img" id="avatarBadgeImg" />
+    </div>
+
+    <!-- Hộp Menu VIP PANEL -->
+    <aside class="vip-panel-card" id="vipPanelCard">
+
+      <!-- Header dạng viên thuốc đỏ neon: VIP PANEL -->
+      <div class="vip-capsule-header">
+        <span class="vip-capsule-title">VIP PANEL</span>
       </div>
 
-      <!-- Nội dung Menu chức năng theo đúng yêu cầu -->
-      <div class="floating-panel-body">
+      <!-- Danh sách các chức năng chính -->
+      <div class="vip-func-list">
 
         <!-- 1. Aimlock -->
-        <div class="func-item">
-          <div class="func-info">
-            <span class="func-name">Aimlock</span>
-            <span class="func-desc">Khóa góc ngắm mượt</span>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="chkAimlock" />
-            <span class="slider"></span>
+        <div class="vip-func-row">
+          <span class="func-title">Aimlock</span>
+          <label class="toggle-pill">
+            <input type="checkbox" id="chkAimlock" checked />
+            <span class="toggle-track">
+              <span class="toggle-state-text">ON</span>
+            </span>
           </label>
         </div>
 
         <!-- 2. Aimbot -->
-        <div class="func-item">
-          <div class="func-info">
-            <span class="func-name">Aimbot</span>
-            <span class="func-desc">Trợ lực hỗ trợ ngắm</span>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="chkAimbot" />
-            <span class="slider"></span>
+        <div class="vip-func-row">
+          <span class="func-title">Aimbot</span>
+          <label class="toggle-pill">
+            <input type="checkbox" id="chkAimbot" checked />
+            <span class="toggle-track">
+              <span class="toggle-state-text">ON</span>
+            </span>
           </label>
         </div>
 
         <!-- 3. Aimhead -->
-        <div class="func-item">
-          <div class="func-info">
-            <span class="func-name">Aimhead</span>
-            <span class="func-desc">Tập trung vùng đầu đối thủ</span>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="chkAimhead" />
-            <span class="slider"></span>
+        <div class="vip-func-row">
+          <span class="func-title">Aimhead</span>
+          <label class="toggle-pill">
+            <input type="checkbox" id="chkAimhead" checked />
+            <span class="toggle-track">
+              <span class="toggle-state-text">ON</span>
+            </span>
           </label>
         </div>
 
         <!-- 4. Tâm Ảo -->
-        <div class="func-item">
-          <div class="func-info">
-            <span class="func-name">Tâm Ảo</span>
-            <span class="func-desc">Hiện tâm đỏ chính giữa màn hình</span>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="chkCrosshair" />
-            <span class="slider"></span>
+        <div class="vip-func-row">
+          <span class="func-title">Tâm Ảo</span>
+          <label class="toggle-pill">
+            <input type="checkbox" id="chkCrosshair" checked />
+            <span class="toggle-track">
+              <span class="toggle-state-text">ON</span>
+            </span>
           </label>
         </div>
 
         <!-- 5. Vòng FOV -->
-        <div class="func-item">
-          <div class="func-info">
-            <span class="func-name">Vòng FOV</span>
-            <span class="func-desc">Hiện vòng tròn căn vùng ngắm</span>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="chkFov" />
-            <span class="slider"></span>
+        <div class="vip-func-row">
+          <span class="func-title">Vòng FOV</span>
+          <label class="toggle-pill">
+            <input type="checkbox" id="chkFov" checked />
+            <span class="toggle-track">
+              <span class="toggle-state-text">ON</span>
+            </span>
           </label>
         </div>
 
-        <!-- Slider chỉnh kích thước vòng FOV -->
-        <div class="slider-item" id="fovSliderBox">
-          <div class="slider-header">
-            <span>Kích Thước Vòng FOV</span>
-            <span class="slider-val" id="valFovSize">140px</span>
+        <!-- 6. Kích Thước FOV (Thanh trượt mượt mà) -->
+        <div class="vip-slider-block">
+          <div class="slider-title-row">
+            <span>Kích Thước FOV: <strong id="valFovSize">140px</strong></span>
           </div>
-          <input type="range" min="60" max="320" value="140" class="range-slider" id="rangeFovSize" />
-        </div>
-
-        <!-- 6. Nhạc (Tự phát lặp lại file MP3) -->
-        <div class="func-item">
-          <div class="func-info">
-            <span class="func-name">Nhạc Nền MP3</span>
-            <span class="func-desc" id="musicStatusText">Tự phát & lặp lại liên tục</span>
+          <div class="range-wrap">
+            <input type="range" min="60" max="320" value="140" class="neon-range" id="rangeFovSize" />
           </div>
-          <label class="switch">
-            <input type="checkbox" id="chkMusic" />
-            <span class="slider"></span>
-          </label>
         </div>
 
-        <!-- Nút chọn file MP3 từ máy / Downloads -->
-        <div class="music-pick-box">
-          <button type="button" class="btn-pick-file" id="btnPickMusic">
-            📂 Chọn File MP3 (Downloads)
-          </button>
-          <div class="current-track-name" id="currentTrackName">Đang dùng nhạc nền mặc định</div>
+        <!-- 7. Nhạc Nền MP3 (Loop) -->
+        <div class="vip-music-block">
+          <div class="music-left-meta">
+            <span class="music-txt-main">Nhạc Nền</span>
+            <span class="music-txt-sub">MP3 (Loop)</span>
+          </div>
+          <div class="music-right-action">
+            <button type="button" class="btn-pill-picker" id="btnPickMusic">
+              Chọn File MP3 (Downloads)
+            </button>
+            <label class="toggle-pill-mini">
+              <input type="checkbox" id="chkMusic" checked />
+              <span class="toggle-track">
+                <span class="toggle-state-text">ON</span>
+              </span>
+            </label>
+          </div>
         </div>
 
-        <!-- Khởi chạy nhanh vào game từ Menu nổi -->
-        <div class="panel-game-launchers">
-          <button type="button" class="btn-float-launch" id="btnPanelLaunchFF">
-            🎮 Vào FF Thường
+        <!-- 8. Nút Khởi Chạy Nhanh Game Free Fire -->
+        <div class="vip-launch-buttons">
+          <button type="button" class="btn-game-red" id="btnLaunchFF">
+            Vào FF Thường
           </button>
-          <button type="button" class="btn-float-launch max" id="btnPanelLaunchFFMax">
-            🔥 Vào FF MAX
+          <button type="button" class="btn-game-outline" id="btnLaunchFFMax">
+            Vào FF MAX
           </button>
         </div>
 
       </div>
 
-      <!-- Footer Menu nổi -->
-      <div class="floating-panel-footer">
-        <span class="f-status-text">● Trạng Thái: Đang chạy trên nền</span>
-        <button type="button" class="btn-hide-overlay" id="btnHideOverlay">Tắt Overlay</button>
-      </div>
     </aside>
 
   </div>
 
-  <!-- ================= HUD HIỂN THỊ CỐ ĐỊNH Ở CHÍNH GIỮA MÀN HÌNH ================= -->
-  <!-- 1. Vòng tròn FOV căn giữa màn hình (kéo chỉnh to nhỏ tùy ý) -->
-  <div class="hud-fov-circle" id="hudFovCircle" hidden>
-    <div class="fov-center-dot"></div>
+  <!-- ================= MODAL QUẢN LÝ / NHẬP KEY (KHÔNG LÀM HỎNG GIAO DIỆN) ================= -->
+  <div class="key-auth-modal" id="keyAuthModal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-avatar">
+        <img src="avatar.jpg" alt="Avatar" />
+      </div>
+      <h3 class="modal-title">XÁC THỰC LICENSE KEY</h3>
+      <p class="modal-desc">Nhập Key kích hoạt VIP để kết nối hệ thống Server 6.1.0</p>
+      
+      <div class="modal-input-wrap">
+        <input type="text" id="modalKeyInput" class="modal-input" placeholder="Nhập mã Key tại đây..." spellcheck="false" />
+        <button type="button" class="btn-modal-paste" id="btnModalPaste">Dán</button>
+      </div>
+
+      <p class="modal-error" id="modalErrorMsg"></p>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-modal-cancel" id="btnModalClose">Đóng</button>
+        <button type="button" class="btn-modal-submit" id="btnModalVerify">Kích Hoạt Ngay</button>
+      </div>
+    </div>
   </div>
 
-  <!-- 2. Tâm Ảo chính giữa tâm Free Fire -->
-  <div class="hud-crosshair" id="hudCrosshair" hidden>
-    <div class="ch-dot"></div>
-    <div class="ch-ring"></div>
-    <div class="ch-line ch-top"></div>
-    <div class="ch-line ch-bottom"></div>
-    <div class="ch-line ch-left"></div>
-    <div class="ch-line ch-right"></div>
-  </div>
-
-  <!-- 3. Audio Player phát lặp lại MP3 -->
-  <audio id="bgmAudio" loop preload="auto"></audio>
+  <!-- Audio Player phát nhạc lặp lại -->
+  <audio id="bgmAudio" loop preload="auto" src="music.mp3"></audio>
   <input type="file" id="bgmFileInput" accept="audio/*" style="display: none;" />
-
-  <!-- Thanh công cụ nhỏ góc trái dưới để bạn test nhanh các màn hình -->
-  <div class="preview-toolbar">
-    <button type="button" class="tool-pill" id="btnPreviewInput">Màn 1: Nhập Key</button>
-    <button type="button" class="tool-pill" id="btnPreviewSuccess">Màn 2: Thành Công</button>
-    <button type="button" class="tool-pill active" id="btnPreviewMain">Màn 3: Trang Chính</button>
-    <button type="button" class="tool-pill" id="btnPreviewToggleBall">🔴 Bật Cục Tròn Nổi</button>
-  </div>
 
   <script src="app.js"></script>
 </body>
