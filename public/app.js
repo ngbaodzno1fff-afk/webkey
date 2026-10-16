@@ -1,297 +1,232 @@
 /**
- * Cấu hình giao diện & Server Key
+ * NGBAO FF VIP Overlay App
+ * Khớp 100% Giao Diện Holo HUD & VIP PANEL Chuẩn Esports
  */
-const APP_CONFIG = {
-  serverApiUrl: "https://webkey-nine.vercel.app/api/key/verify",
-  getKeyUrl: "https://webkey-nine.vercel.app/admin",
 
-  deviceInfo: {
-    deviceName:
-      window.AndroidBridge && typeof window.AndroidBridge.getDeviceName === "function"
-        ? window.AndroidBridge.getDeviceName()
-        : "iPhone 12 Pro",
-    osVersion: "Android 14",
-  },
+const API_SERVER_URL = "https://webkey-nine.vercel.app/api/key/verify";
 
-  defaultSuccessData: {
-    greeting: "Hi iPhone 12 Pro",
-    expireAt: "12-10-2026 2:37:17 CH",
-    deviceName: "iPhone 12 Pro",
-    osVersion: "Android 14",
-    apiServer: "6.1.0",
-  },
-};
+// DOM Elements
+const hudCrosshair = document.getElementById("hudCrosshair");
+const hudLabelTamAo = document.getElementById("hudLabelTamAo");
+const hudFovCircle = document.getElementById("hudFovCircle");
+const hudLabelVongFov = document.getElementById("hudLabelVongFov");
+const holoHudLabel = document.getElementById("holoHudLabel");
 
-// ================= ELEMENTS =================
-const screenKeyInput = document.getElementById("screenKeyInput");
-const screenKeySuccess = document.getElementById("screenKeySuccess");
-const screenMainDashboard = document.getElementById("screenMainDashboard");
-const bgToast = document.getElementById("bgToast");
+const chkCrosshair = document.getElementById("chkCrosshair");
+const chkFov = document.getElementById("chkFov");
+const chkAimlock = document.getElementById("chkAimlock");
+const chkAimbot = document.getElementById("chkAimbot");
+const chkAimhead = document.getElementById("chkAimhead");
 
-// Screen 1: Key Form
-const keyForm = document.getElementById("keyForm");
-const inputWrapper = document.getElementById("inputWrapper");
-const keyInput = document.getElementById("keyInput");
-const pasteBtn = document.getElementById("pasteBtn");
-const errorMsg = document.getElementById("errorMsg");
-const loginBtn = document.getElementById("loginBtn");
-const loginBtnText = document.getElementById("loginBtnText");
-const loginLoader = document.getElementById("loginLoader");
-const getKeyLink = document.getElementById("getKeyLink");
+const rangeFovSize = document.getElementById("rangeFovSize");
+const valFovSize = document.getElementById("valFovSize");
 
-// Screen 2: Success
-const greetingText = document.getElementById("greetingText");
-const expireText = document.getElementById("expireText");
-const deviceText = document.getElementById("deviceText");
-const apiServerText = document.getElementById("apiServerText");
-const tapCloseBtn = document.getElementById("tapCloseBtn");
+const chkMusic = document.getElementById("chkMusic");
+const bgmAudio = document.getElementById("bgmAudio");
+const btnPickMusic = document.getElementById("btnPickMusic");
+const bgmFileInput = document.getElementById("bgmFileInput");
 
-// Screen 3: Main Dashboard
-const mainUserName = document.getElementById("mainUserName");
-const dashKeyExpire = document.getElementById("dashKeyExpire");
-const overlayStatusDesc = document.getElementById("overlayStatusDesc");
-const overlayStatusDot = document.getElementById("overlayStatusDot");
-const btnActivateOverlay = document.getElementById("btnActivateOverlay");
-const btnOpenFloatingDirect = document.getElementById("btnOpenFloatingDirect");
-const btnRecheckKey = document.getElementById("btnRecheckKey");
+const btnLaunchFF = document.getElementById("btnLaunchFF");
+const btnLaunchFFMax = document.getElementById("btnLaunchFFMax");
 
-// Permission Modal
-const overlayPermModal = document.getElementById("overlayPermModal");
-const btnPermDeny = document.getElementById("btnPermDeny");
-const btnPermAllow = document.getElementById("btnPermAllow");
-
-// Floating Widget
-const floatingContainer = document.getElementById("floatingContainer");
 const floatingBall = document.getElementById("floatingBall");
-const floatingMenuPanel = document.getElementById("floatingMenuPanel");
-const btnMinimizePanel = document.getElementById("btnMinimizePanel");
-const btnHideOverlay = document.getElementById("btnHideOverlay");
+const vipPanelCard = document.getElementById("vipPanelCard");
+const vipPanelWrapper = document.getElementById("vipPanelWrapper");
 
-// Preview Toolbar
-const btnPreviewInput = document.getElementById("btnPreviewInput");
-const btnPreviewSuccess = document.getElementById("btnPreviewSuccess");
-const btnPreviewMain = document.getElementById("btnPreviewMain");
-const btnPreviewToggleBall = document.getElementById("btnPreviewToggleBall");
+// Key Modal Elements
+const btnOpenKeyModal = document.getElementById("btnOpenKeyModal");
+const keyAuthModal = document.getElementById("keyAuthModal");
+const modalKeyInput = document.getElementById("modalKeyInput");
+const btnModalPaste = document.getElementById("btnModalPaste");
+const btnModalClose = document.getElementById("btnModalClose");
+const btnModalVerify = document.getElementById("btnModalVerify");
+const modalErrorMsg = document.getElementById("modalErrorMsg");
+const topKeyStatusText = document.getElementById("topKeyStatusText");
 
-let isOverlayActive = false;
-let toastTimer = null;
+// Toast
+const bgToast = document.getElementById("bgToast");
+const toastTitle = document.getElementById("toastTitle");
+const toastSub = document.getElementById("toastSub");
 
-// ================= CHUYỂN MÀN HÌNH =================
-function switchScreen(target) {
-  [screenKeyInput, screenKeySuccess, screenMainDashboard].forEach((s) =>
-    s.classList.remove("active")
-  );
-  [btnPreviewInput, btnPreviewSuccess, btnPreviewMain].forEach((b) =>
-    b.classList.remove("active")
-  );
-
-  if (target === "input") {
-    screenKeyInput.classList.add("active");
-    btnPreviewInput.classList.add("active");
+function showToast(title, sub = "Holo HUD Active") {
+  if (!bgToast) return;
+  toastTitle.textContent = title;
+  toastSub.textContent = sub;
+  bgToast.classList.add("show");
+  setTimeout(() => {
     bgToast.classList.remove("show");
-  } else if (target === "success") {
-    screenKeySuccess.classList.add("active");
-    btnPreviewSuccess.classList.add("active");
-    clearTimeout(toastTimer);
-    bgToast.classList.add("show");
-  } else if (target === "main") {
-    screenMainDashboard.classList.add("active");
-    btnPreviewMain.classList.add("active");
-    bgToast.classList.remove("show");
+  }, 2200);
+}
+
+// ================= 1. VÒNG FOV & THANH TRƯỢT KÍCH THƯỚC =================
+function updateFovSize(size) {
+  if (hudFovCircle) {
+    hudFovCircle.style.width = `${size}px`;
+    hudFovCircle.style.height = `${size}px`;
+  }
+  if (valFovSize) {
+    valFovSize.textContent = `${size}px`;
+  }
+  if (holoHudLabel) {
+    holoHudLabel.style.top = `calc(50% - ${size / 2 + 25}px)`;
+  }
+  if (hudLabelVongFov) {
+    hudLabelVongFov.style.top = `calc(50% + ${size / 2 - 15}px)`;
+    hudLabelVongFov.style.left = `calc(50% - ${size / 2 + 20}px)`;
   }
 }
 
-function renderSuccessInfo(data = {}) {
-  const info = { ...APP_CONFIG.defaultSuccessData, ...data };
-  greetingText.textContent = info.greeting;
-  expireText.textContent = `Hết hạn vào: ${info.expireAt}`;
-  deviceText.textContent = `Thiết bị: ${info.deviceName} | Phiên bản: ${info.osVersion}`;
-  apiServerText.textContent = `APIServer: ${info.apiServer}`;
-
-  mainUserName.textContent = info.greeting;
-  dashKeyExpire.textContent = `Hạn dùng: ${info.expireAt}`;
+if (rangeFovSize) {
+  rangeFovSize.addEventListener("input", (e) => {
+    updateFovSize(e.target.value);
+  });
 }
 
-function showError(message) {
-  errorMsg.textContent = message;
-  inputWrapper.classList.remove("shake");
-  void inputWrapper.offsetWidth;
-  inputWrapper.classList.add("shake");
+// Bật / Tắt Vòng FOV
+if (chkFov) {
+  chkFov.addEventListener("change", (e) => {
+    const isChecked = e.target.checked;
+    updateToggleText(chkFov, isChecked);
+    if (hudFovCircle) hudFovCircle.classList.toggle("hidden", !isChecked);
+    if (hudLabelVongFov) hudLabelVongFov.classList.toggle("hidden", !isChecked);
+    if (holoHudLabel) holoHudLabel.classList.toggle("hidden", !isChecked);
+    showToast(isChecked ? "Đã BẬT Vòng FOV" : "Đã TẮT Vòng FOV");
+  });
 }
 
-// ================= KEY INPUT HANDLERS =================
-pasteBtn.addEventListener("click", async () => {
-  errorMsg.textContent = "";
-  try {
-    if (window.AndroidBridge && typeof window.AndroidBridge.getClipboard === "function") {
-      const clip = window.AndroidBridge.getClipboard();
-      if (clip) {
-        keyInput.value = clip.trim();
-        return;
-      }
-    }
-    const text = await navigator.clipboard.readText();
-    if (text && text.trim()) {
-      keyInput.value = text.trim();
-    } else {
-      keyInput.value = "NGBAO-VIP1-2026-FF99";
-    }
-  } catch {
-    keyInput.value = "NGBAO-VIP1-2026-FF99";
-  }
-  keyInput.focus();
-});
+// Bật / Tắt Tâm Ảo (Crosshair)
+if (chkCrosshair) {
+  chkCrosshair.addEventListener("change", (e) => {
+    const isChecked = e.target.checked;
+    updateToggleText(chkCrosshair, isChecked);
+    if (hudCrosshair) hudCrosshair.classList.toggle("hidden", !isChecked);
+    if (hudLabelTamAo) hudLabelTamAo.classList.toggle("hidden", !isChecked);
+    showToast(isChecked ? "Đã BẬT Tâm Ảo" : "Đã TẮT Tâm Ảo");
+  });
+}
 
-keyForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  errorMsg.textContent = "";
-
-  const key = keyInput.value.trim();
-  if (!key) {
-    showError("Vui lòng nhập Key trước khi kích hoạt!");
-    return;
-  }
-
-  loginBtn.disabled = true;
-  loginBtnText.textContent = "Đang xác thực Server...";
-  loginLoader.hidden = false;
-
-  try {
-    let hwid = localStorage.getItem("ff_device_hwid");
-    if (!hwid) {
-      hwid = "HWID-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-      localStorage.setItem("ff_device_hwid", hwid);
-    }
-
-    const res = await fetch(APP_CONFIG.serverApiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        key,
-        deviceName: APP_CONFIG.deviceInfo.deviceName,
-        hwid,
-        osVersion: APP_CONFIG.deviceInfo.osVersion,
-      }),
+// Aimlock, Aimbot, Aimhead
+[chkAimlock, chkAimbot, chkAimhead].forEach((chk) => {
+  if (chk) {
+    chk.addEventListener("change", (e) => {
+      const isChecked = e.target.checked;
+      updateToggleText(chk, isChecked);
+      const name = chk.id.replace("chk", "");
+      showToast(`${isChecked ? "Đã BẬT" : "Đã TẮT"} ${name}`);
     });
+  }
+});
 
-    const result = await res.json();
-    if (!res.ok || !result.success) {
-      throw new Error(result.message || "Key không hợp lệ hoặc đã hết hạn!");
+function updateToggleText(inputEl, isChecked) {
+  const txtEl = inputEl.parentElement.querySelector(".toggle-state-text");
+  if (txtEl) {
+    txtEl.textContent = isChecked ? "ON" : "OFF";
+  }
+}
+
+// ================= 2. HỆ THỐNG NHẠC MP3 LẶP LẠI =================
+function startMusic() {
+  if (bgmAudio) {
+    bgmAudio.loop = true;
+    bgmAudio.play().catch(() => {
+      // Autoplay fallback
+      document.addEventListener("click", () => {
+        if (chkMusic.checked) bgmAudio.play().catch(() => {});
+      }, { once: true });
+    });
+  }
+}
+
+function stopMusic() {
+  if (bgmAudio) bgmAudio.pause();
+}
+
+if (chkMusic) {
+  chkMusic.addEventListener("change", (e) => {
+    const isChecked = e.target.checked;
+    updateToggleText(chkMusic, isChecked);
+    if (isChecked) {
+      startMusic();
+      showToast("Đã BẬT Nhạc Nền MP3 (Loop)");
+    } else {
+      stopMusic();
+      showToast("Đã TẮT Nhạc Nền");
     }
-
-    renderSuccessInfo(result.data);
-    localStorage.setItem("saved_ff_key", key);
-    switchScreen("success");
-  } catch (err) {
-    showError(err.message || "Không thể kết nối tới Server Key!");
-  } finally {
-    loginBtn.disabled = false;
-    loginBtnText.textContent = "Đăng Nhập / Kích Hoạt";
-    loginLoader.hidden = true;
-  }
-});
-
-getKeyLink.addEventListener("click", (e) => {
-  e.preventDefault();
-  window.open(APP_CONFIG.getKeyUrl, "_blank");
-});
-
-// Bấm vào Màn 2 ("Tap to close") -> VÀO TRANG CHÍNH
-tapCloseBtn.addEventListener("click", () => {
-  switchScreen("main");
-});
-
-screenKeySuccess.addEventListener("click", (e) => {
-  if (e.target === tapCloseBtn) return;
-  switchScreen("main");
-});
-
-// ================= TRANG CHÍNH & XIN QUYỀN OVERLAY =================
-btnActivateOverlay.addEventListener("click", () => {
-  if (isOverlayActive) {
-    // Nếu đã bật, mở thẳng menu nổi
-    openFloatingMenu();
-  } else {
-    // Nếu chưa cấp quyền, mở hộp thoại xin quyền
-    overlayPermModal.classList.add("show");
-  }
-});
-
-btnPermDeny.addEventListener("click", () => {
-  overlayPermModal.classList.remove("show");
-});
-
-btnPermAllow.addEventListener("click", () => {
-  overlayPermModal.classList.remove("show");
-  enableOverlayService();
-});
-
-btnOpenFloatingDirect.addEventListener("click", () => {
-  enableOverlayService();
-  openFloatingMenu();
-});
-
-btnRecheckKey.addEventListener("click", () => {
-  switchScreen("input");
-});
-
-function enableOverlayService() {
-  isOverlayActive = true;
-  floatingContainer.hidden = false;
-  overlayStatusDesc.textContent = "Đang chạy trên nền game (Đã bật)";
-  overlayStatusDot.classList.add("active");
-
-  // Nếu chạy trong Android native
-  if (window.AndroidBridge && typeof window.AndroidBridge.startFloatingService === "function") {
-    window.AndroidBridge.startFloatingService();
-  }
+  });
 }
 
-function disableOverlayService() {
-  isOverlayActive = false;
-  floatingContainer.hidden = true;
-  floatingMenuPanel.classList.remove("open");
-  overlayStatusDesc.textContent = "Chưa bật (Bấm nút giữa để mở)";
-  overlayStatusDot.classList.remove("active");
+// Chọn file nhạc từ Downloads
+if (btnPickMusic && bgmFileInput) {
+  btnPickMusic.addEventListener("click", () => {
+    bgmFileInput.click();
+  });
+
+  bgmFileInput.addEventListener("change", () => {
+    if (bgmFileInput.files && bgmFileInput.files[0]) {
+      const file = bgmFileInput.files[0];
+      bgmAudio.src = URL.createObjectURL(file);
+      bgmAudio.loop = true;
+      chkMusic.checked = true;
+      updateToggleText(chkMusic, true);
+      bgmAudio.play().catch(console.error);
+      btnPickMusic.textContent = `🎵 ${file.name.substring(0, 16)}...`;
+      showToast(`Đã nạp bài: ${file.name}`);
+    }
+  });
 }
 
-// ================= CỤC TRÒN NỔI & BẢNG CHỨC NĂNG =================
-function openFloatingMenu() {
-  floatingContainer.hidden = false;
-  floatingMenuPanel.classList.add("open");
+// ================= 3. KHỞI CHẠY FREE FIRE & FF MAX =================
+function launchGame(type) {
+  const packageName = type === "max" ? "com.dts.freefiremax" : "com.dts.freefireth";
+  const gameName = type === "max" ? "Free Fire MAX" : "Free Fire Thường";
 
-  // Định vị bảng menu cạnh cục tròn
-  const rect = floatingBall.getBoundingClientRect();
-  const screenWidth = window.innerWidth;
-  const screenHeight = window.innerHeight;
-
-  if (rect.left > screenWidth / 2) {
-    floatingMenuPanel.style.left = "auto";
-    floatingMenuPanel.style.right = `${Math.max(screenWidth - rect.left + 14, 16)}px`;
-  } else {
-    floatingMenuPanel.style.right = "auto";
-    floatingMenuPanel.style.left = `${Math.max(rect.right + 14, 16)}px`;
+  // Gọi native Android bridge nếu đang chạy trong APK
+  if (window.AndroidBridge) {
+    if (type === "max" && typeof window.AndroidBridge.launchFreeFireMax === "function") {
+      window.AndroidBridge.launchFreeFireMax();
+      showToast(`Đang mở ${gameName}...`);
+      return;
+    }
+    if (type === "normal" && typeof window.AndroidBridge.launchFreeFire === "function") {
+      window.AndroidBridge.launchFreeFire();
+      showToast(`Đang mở ${gameName}...`);
+      return;
+    }
   }
 
-  const topPos = Math.min(Math.max(rect.top - 40, 40), screenHeight - 380);
-  floatingMenuPanel.style.top = `${topPos}px`;
+  // Fallback trên web di động: Mở Android intent
+  showToast(`Đang mở ${gameName}...`);
+  const intentUrl = `intent://#Intent;package=${packageName};action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end`;
+  const startTime = Date.now();
+  window.location.href = intentUrl;
+
+  setTimeout(() => {
+    if (Date.now() - startTime < 1600) {
+      window.open(`https://play.google.com/store/apps/details?id=${packageName}`, "_blank");
+    }
+  }, 1200);
 }
 
-function closeFloatingMenu() {
-  floatingMenuPanel.classList.remove("open");
-}
+if (btnLaunchFF) btnLaunchFF.addEventListener("click", () => launchGame("normal"));
+if (btnLaunchFFMax) btnLaunchFFMax.addEventListener("click", () => launchGame("max"));
 
-btnMinimizePanel.addEventListener("click", closeFloatingMenu);
-btnHideOverlay.addEventListener("click", () => {
-  disableOverlayService();
-});
-
-// Xử lý kéo thả Cục tròn nổi (Touch & Mouse Dragging)
+// ================= 4. THU NHỎ / MỞ RỘNG & KÉO THẢ VIP PANEL =================
+let isPanelMinimized = false;
 let isDragging = false;
 let startX = 0, startY = 0;
-let initialX = 0, initialY = 0;
+let initialLeft = 0, initialTop = 0;
 let hasMoved = false;
 
+floatingBall.addEventListener("click", (e) => {
+  if (hasMoved) return; // Nếu vừa kéo thả thì không đóng/mở
+  isPanelMinimized = !isPanelMinimized;
+  if (vipPanelCard) {
+    vipPanelCard.classList.toggle("minimized", isPanelMinimized);
+  }
+  showToast(isPanelMinimized ? "Đã thu nhỏ VIP PANEL về Avatar" : "Đã mở rộng VIP PANEL");
+});
+
+// Xử lý kéo thả Panel bằng Avatar badge
 function onPointerDown(e) {
   isDragging = true;
   hasMoved = false;
@@ -301,9 +236,9 @@ function onPointerDown(e) {
   startX = clientX;
   startY = clientY;
 
-  const rect = floatingBall.getBoundingClientRect();
-  initialX = rect.left;
-  initialY = rect.top;
+  const rect = vipPanelWrapper.getBoundingClientRect();
+  initialLeft = rect.left;
+  initialTop = rect.top;
 
   document.addEventListener("mousemove", onPointerMove);
   document.addEventListener("mouseup", onPointerUp);
@@ -324,12 +259,16 @@ function onPointerMove(e) {
     if (e.cancelable) e.preventDefault();
   }
 
-  const newX = Math.min(Math.max(initialX + dx, 10), window.innerWidth - 82);
-  const newY = Math.min(Math.max(initialY + dy, 40), window.innerHeight - 82);
+  const maxLeft = window.innerWidth - 80;
+  const maxTop = window.innerHeight - 80;
 
-  floatingBall.style.left = `${newX}px`;
-  floatingBall.style.top = `${newY}px`;
-  floatingBall.style.right = "auto";
+  const newLeft = Math.min(Math.max(initialLeft + dx, 10), maxLeft);
+  const newTop = Math.min(Math.max(initialTop + dy, 40), maxTop);
+
+  vipPanelWrapper.style.left = `${newLeft}px`;
+  vipPanelWrapper.style.top = `${newTop}px`;
+  vipPanelWrapper.style.right = "auto";
+  vipPanelWrapper.style.transform = "none";
 }
 
 function onPointerUp() {
@@ -339,287 +278,95 @@ function onPointerUp() {
   document.removeEventListener("mouseup", onPointerUp);
   document.removeEventListener("touchmove", onPointerMove);
   document.removeEventListener("touchend", onPointerUp);
-
-  // Nếu chỉ chạm nhẹ mà không kéo -> MỞ / ĐÓNG MENU
-  if (!hasMoved) {
-    if (floatingMenuPanel.classList.contains("open")) {
-      closeFloatingMenu();
-    } else {
-      openFloatingMenu();
-    }
-  }
 }
 
 floatingBall.addEventListener("mousedown", onPointerDown);
 floatingBall.addEventListener("touchstart", onPointerDown, { passive: false });
 
-// ================= CÁC CHỨC NĂNG FLOATING MENU (AIMLOCK, AIMBOT, AIMHEAD) =================
-const chkAimlock = document.getElementById("chkAimlock");
-const chkAimbot = document.getElementById("chkAimbot");
-const chkAimhead = document.getElementById("chkAimhead");
+// ================= 5. MODAL XÁC THỰC LICENSE KEY =================
+if (btnOpenKeyModal && keyAuthModal) {
+  btnOpenKeyModal.addEventListener("click", () => {
+    keyAuthModal.classList.add("open");
+  });
+}
 
-[chkAimlock, chkAimbot, chkAimhead].forEach((chk) => {
-  if (chk) {
-    chk.addEventListener("change", (e) => {
-      const name = e.target.id.replace("chk", "");
-      if (e.target.checked) {
-        showToastNotice(`Đã BẬT ${name}`);
+if (btnModalClose && keyAuthModal) {
+  btnModalClose.addEventListener("click", () => {
+    keyAuthModal.classList.remove("open");
+  });
+}
+
+if (btnModalPaste && modalKeyInput) {
+  btnModalPaste.addEventListener("click", async () => {
+    if (window.AndroidBridge && typeof window.AndroidBridge.getClipboard === "function") {
+      const clip = window.AndroidBridge.getClipboard();
+      if (clip) {
+        modalKeyInput.value = clip.trim();
+        return;
+      }
+    }
+    try {
+      const text = await navigator.clipboard.readText();
+      modalKeyInput.value = text.trim();
+    } catch {
+      modalKeyInput.focus();
+    }
+  });
+}
+
+if (btnModalVerify) {
+  btnModalVerify.addEventListener("click", async () => {
+    const key = modalKeyInput.value.trim();
+    if (!key) {
+      modalErrorMsg.textContent = "Vui lòng nhập mã Key!";
+      return;
+    }
+
+    modalErrorMsg.textContent = "Đang kiểm tra Key...";
+    btnModalVerify.disabled = true;
+
+    try {
+      const deviceName = window.AndroidBridge && typeof window.AndroidBridge.getDeviceName === "function" 
+        ? window.AndroidBridge.getDeviceName() 
+        : navigator.userAgent.includes("Android") ? "Android Phone" : "Xiaomi Device";
+
+      const resp = await fetch(API_SERVER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, deviceName })
+      });
+
+      const res = await resp.json();
+      if (res.success) {
+        localStorage.setItem("saved_ff_key", key);
+        topKeyStatusText.textContent = `KEY VIP: ${key.substring(0, 10)}...`;
+        showToast("Xác Thực Key Thành Công!", "VIP Active");
+        keyAuthModal.classList.remove("open");
       } else {
-        showToastNotice(`Đã TẮT ${name}`);
+        modalErrorMsg.textContent = res.message || "Key không hợp lệ!";
       }
-    });
+    } catch (e) {
+      // Fallback nếu mạng yếu
+      localStorage.setItem("saved_ff_key", key);
+      topKeyStatusText.textContent = `KEY VIP: ACTIVE`;
+      showToast("Đã kích hoạt Offline", "Holo HUD Active");
+      keyAuthModal.classList.remove("open");
+    } finally {
+      btnModalVerify.disabled = false;
+    }
+  });
+}
+
+// Khởi tạo ban đầu
+document.addEventListener("DOMContentLoaded", () => {
+  updateFovSize(140);
+  const savedKey = localStorage.getItem("saved_ff_key") || "NGBAO-VIP1-2026-FF99";
+  if (topKeyStatusText) {
+    topKeyStatusText.textContent = `KEY VIP: ACTIVE`;
   }
+  if (modalKeyInput) {
+    modalKeyInput.value = savedKey;
+  }
+  // Tự động phát nhạc nếu người dùng bật
+  startMusic();
 });
-
-// ================= TÂM ẢO (CROSSHAIR CHÍNH GIỮA MÀN HÌNH) =================
-const chkCrosshair = document.getElementById("chkCrosshair");
-const hudCrosshair = document.getElementById("hudCrosshair");
-
-if (chkCrosshair && hudCrosshair) {
-  chkCrosshair.addEventListener("change", () => {
-    hudCrosshair.hidden = !chkCrosshair.checked;
-    if (chkCrosshair.checked) {
-      showToastNotice("Đã hiện Tâm Ảo chính giữa màn hình");
-    }
-  });
-}
-
-// ================= VÒNG TRÒN FOV (CĂN GIỮA VÀ KÉO CHỈNH TO NHỎ) =================
-const chkFov = document.getElementById("chkFov");
-const hudFovCircle = document.getElementById("hudFovCircle");
-const rangeFovSize = document.getElementById("rangeFovSize");
-const valFovSize = document.getElementById("valFovSize");
-
-if (chkFov && hudFovCircle) {
-  chkFov.addEventListener("change", () => {
-    hudFovCircle.hidden = !chkFov.checked;
-    if (chkFov.checked) {
-      showToastNotice("Đã bật Vòng FOV ngắm");
-    }
-  });
-}
-
-if (rangeFovSize && hudFovCircle && valFovSize) {
-  rangeFovSize.addEventListener("input", () => {
-    const size = rangeFovSize.value;
-    hudFovCircle.style.width = `${size}px`;
-    hudFovCircle.style.height = `${size}px`;
-    valFovSize.textContent = `${size}px`;
-  });
-}
-
-// ================= PHÁT NHẠC MP3 LẶP LẠI (TỪ DOWNLOADS / MÁY) =================
-const chkMusic = document.getElementById("chkMusic");
-const bgmAudio = document.getElementById("bgmAudio");
-const btnPickMusic = document.getElementById("btnPickMusic");
-const bgmFileInput = document.getElementById("bgmFileInput");
-const musicStatusText = document.getElementById("musicStatusText");
-const currentTrackName = document.getElementById("currentTrackName");
-
-let audioContext = null;
-let synthTimer = null;
-let isSynthPlaying = false;
-let customAudioLoaded = false;
-
-function startSynthBeat() {
-  if (isSynthPlaying) return;
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    if (!audioContext) audioContext = new AudioCtx();
-    if (audioContext.state === "suspended") audioContext.resume();
-
-    isSynthPlaying = true;
-    let step = 0;
-    const notes = [130.81, 146.83, 164.81, 196.00]; // Tông beat C3-D3-E3-G3
-    synthTimer = setInterval(() => {
-      if (!isSynthPlaying) return;
-      try {
-        const osc = audioContext.createOscillator();
-        const gain = audioContext.createGain();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(notes[step % notes.length], audioContext.currentTime);
-        gain.gain.setValueAtTime(0.06, audioContext.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.35);
-        osc.connect(gain);
-        gain.connect(audioContext.destination);
-        osc.start();
-        osc.stop(audioContext.currentTime + 0.36);
-        step++;
-      } catch (err) {}
-    }, 420);
-  } catch (e) {}
-}
-
-function stopSynthBeat() {
-  isSynthPlaying = false;
-  if (synthTimer) {
-    clearInterval(synthTimer);
-    synthTimer = null;
-  }
-}
-
-function playBgm() {
-  if (customAudioLoaded || (bgmAudio && bgmAudio.src && bgmAudio.src.startsWith("blob:"))) {
-    bgmAudio.loop = true;
-    bgmAudio.play().then(() => {
-      if (musicStatusText) {
-        musicStatusText.textContent = "Đang phát lặp lại";
-        musicStatusText.style.color = "#32d764";
-      }
-    }).catch(() => {
-      startSynthBeat();
-    });
-  } else {
-    // Thử load music.mp3 hoặc phát beat synth ngầm
-    bgmAudio.src = "music.mp3";
-    bgmAudio.loop = true;
-    bgmAudio.play().then(() => {
-      customAudioLoaded = true;
-      if (musicStatusText) {
-        musicStatusText.textContent = "Đang phát lặp lại";
-        musicStatusText.style.color = "#32d764";
-      }
-    }).catch(() => {
-      startSynthBeat();
-      if (musicStatusText) {
-        musicStatusText.textContent = "Đang phát beat nền lặp lại";
-        musicStatusText.style.color = "#32d764";
-      }
-    });
-  }
-}
-
-function pauseBgm() {
-  if (bgmAudio) bgmAudio.pause();
-  stopSynthBeat();
-  if (musicStatusText) {
-    musicStatusText.textContent = "Tự phát & lặp lại liên tục";
-    musicStatusText.style.color = "";
-  }
-}
-
-if (chkMusic) {
-  chkMusic.addEventListener("change", () => {
-    if (chkMusic.checked) {
-      playBgm();
-      showToastNotice("Đã bật nhạc nền (Lặp lại liên tục)");
-    } else {
-      pauseBgm();
-      showToastNotice("Đã tắt nhạc nền");
-    }
-  });
-}
-
-if (btnPickMusic && bgmFileInput) {
-  btnPickMusic.addEventListener("click", () => {
-    bgmFileInput.click();
-  });
-
-  bgmFileInput.addEventListener("change", () => {
-    if (bgmFileInput.files && bgmFileInput.files[0]) {
-      const file = bgmFileInput.files[0];
-      stopSynthBeat();
-      bgmAudio.src = URL.createObjectURL(file);
-      bgmAudio.loop = true;
-      customAudioLoaded = true;
-      if (currentTrackName) {
-        currentTrackName.textContent = `🎵 ${file.name}`;
-      }
-      chkMusic.checked = true;
-      bgmAudio.play().then(() => {
-        if (musicStatusText) {
-          musicStatusText.textContent = "Đang phát file từ Downloads";
-          musicStatusText.style.color = "#32d764";
-        }
-      }).catch(console.error);
-      showToastNotice(`Đã nạp file: ${file.name}`);
-    }
-  });
-}
-
-// ================= KHỞI CHẠY FREE FIRE & FREE FIRE MAX =================
-function launchGame(type) {
-  const packageName = type === "max" ? "com.dts.freefiremax" : "com.dts.freefireth";
-  const gameTitle = type === "max" ? "Free Fire MAX" : "Free Fire Thường";
-
-  // 1. Thử gọi qua AndroidBridge nếu chạy trong APK Android
-  if (window.AndroidBridge) {
-    if (type === "max" && typeof window.AndroidBridge.launchFreeFireMax === "function") {
-      window.AndroidBridge.launchFreeFireMax();
-      showToastNotice(`Đang mở ${gameTitle}...`);
-      return;
-    }
-    if (type === "normal" && typeof window.AndroidBridge.launchFreeFire === "function") {
-      window.AndroidBridge.launchFreeFire();
-      showToastNotice(`Đang mở ${gameTitle}...`);
-      return;
-    }
-  }
-
-  // 2. Nếu chạy trên trình duyệt web điện thoại: Mở qua Android Intent scheme
-  showToastNotice(`Đang kết nối mở ${gameTitle}...`);
-  const intentUrl = `intent://#Intent;package=${packageName};action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end`;
-  const startTime = Date.now();
-  window.location.href = intentUrl;
-
-  setTimeout(() => {
-    // Nếu không mở được app sau 1.5s -> chuyển sang trang Google Play Store
-    if (Date.now() - startTime < 1600) {
-      window.open(`https://play.google.com/store/apps/details?id=${packageName}`, "_blank");
-    }
-  }, 1200);
-}
-
-// Gắn sự kiện nút khởi chạy cả ở Dashboard và trong Menu nổi
-const btnMainLaunchFF = document.getElementById("btnMainLaunchFF");
-const btnMainLaunchFFMax = document.getElementById("btnMainLaunchFFMax");
-const btnPanelLaunchFF = document.getElementById("btnPanelLaunchFF");
-const btnPanelLaunchFFMax = document.getElementById("btnPanelLaunchFFMax");
-
-if (btnMainLaunchFF) btnMainLaunchFF.addEventListener("click", () => launchGame("normal"));
-if (btnMainLaunchFFMax) btnMainLaunchFFMax.addEventListener("click", () => launchGame("max"));
-if (btnPanelLaunchFF) btnPanelLaunchFF.addEventListener("click", () => launchGame("normal"));
-if (btnPanelLaunchFFMax) btnPanelLaunchFFMax.addEventListener("click", () => launchGame("max"));
-
-function showToastNotice(msg) {
-  const toast = document.getElementById("bgToast");
-  const title = toast ? toast.querySelector(".toast-title") : null;
-  const sub = toast ? toast.querySelector(".toast-sub") : null;
-  if (toast && title) {
-    title.textContent = msg;
-    if (sub) sub.textContent = "VIP Menu Active";
-    toast.classList.add("show");
-    setTimeout(() => {
-      toast.classList.remove("show");
-    }, 2200);
-  }
-}
-
-// ================= PREVIEW TOOLBAR =================
-btnPreviewInput.addEventListener("click", () => switchScreen("input"));
-btnPreviewSuccess.addEventListener("click", () => {
-  renderSuccessInfo();
-  switchScreen("success");
-});
-btnPreviewMain.addEventListener("click", () => {
-  renderSuccessInfo();
-  switchScreen("main");
-});
-btnPreviewToggleBall.addEventListener("click", () => {
-  if (isOverlayActive) {
-    disableOverlayService();
-  } else {
-    enableOverlayService();
-    openFloatingMenu();
-  }
-});
-
-// Khởi tạo
-renderSuccessInfo();
-const savedKey = localStorage.getItem("saved_ff_key");
-if (savedKey) {
-  keyInput.value = savedKey;
-} else {
-  keyInput.value = "NGBAO-VIP1-2026-FF99";
-}
